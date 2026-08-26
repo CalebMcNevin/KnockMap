@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Door-Knocking Report Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="centroids.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; color: #1c2733; }
+  header {
+    display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center;
+    padding: 10px 16px; background: #fff; border-bottom: 1px solid #dfe5ea;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  }
+  header h1 { font-size: 16px; margin: 0; color: #24425c; }
+  header label { display: flex; align-items: center; gap: 6px; }
+  select, button {
+    font: inherit; padding: 5px 8px; border: 1px solid #c4cfd8;
+    border-radius: 6px; background: #fff;
+  }
+  #summary { color: #5a6b7b; font-size: 13px; }
+  #summary details { display: inline-block; }
+  #map { height: calc(100vh - 59px); width: 100vw; }
+  .hidden { display: none !important; }
+  #drop {
+    position: fixed; inset: 0; z-index: 2000; display: flex;
+    flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; background: rgba(36, 66, 92, .94); color: #fff; cursor: pointer;
+  }
+  #drop .big { font-size: 22px; font-weight: 600; }
+  #drop .sub { opacity: .8; max-width: 460px; text-align: center; }
+  #drop.hover { background: rgba(60, 145, 202, .95); }
+  #drop .btn {
+    padding: 10px 22px; border-radius: 8px; background: #4db2e8; color: #fff;
+    font-weight: 600; border: none;
+  }
+  #uploadAgain { cursor: pointer; }
+  #banner {
+    padding: 8px 16px; background: #fdecea; color: #b3261e;
+    border-bottom: 1px solid #f5c6c2;
+  }
+  #legend {
+    position: absolute; bottom: 24px; right: 12px; z-index: 1000;
+    background: rgba(255,255,255,.92); padding: 10px 12px; border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25); font-size: 12px; max-width: 280px;
+  }
+  #legend .bar {
+    height: 10px; border-radius: 3px; margin: 6px 0 3px;
+    background: linear-gradient(90deg, #ffffcc, #addd8e, #41ab5d, #006837);
+  }
+  #legend .ticks { display: flex; justify-content: space-between; color: #5a6b7b; }
+  #legend .none { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: #5a6b7b; }
+  #legend .none i { width: 10px; height: 10px; border-radius: 50%; background: #9aa7b1; display: inline-block; }
+  .leaflet-popup table { border-collapse: collapse; }
+  .leaflet-popup td { padding: 2px 10px 2px 0; white-space: nowrap; }
+  .leaflet-popup td:first-child { color: #5a6b7b; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Door-Knocking Report Map</h1>
+  <label id="uploadAgain">↻ New CSV <input type="file" id="file" accept=".csv,text/csv" class="hidden"></label>
+  <label>Color/size by <select id="metric" class="hidden"></select></label>
+  <label class="hidden" id="hideZeroWrap"><input type="checkbox" id="hideZero"> Hide zeros</label>
+  <span id="summary"></span>
+</header>
+<div id="banner" class="hidden"></div>
+<div id="map"></div>
+<div id="legend" class="hidden">
+  <b id="legendTitle"></b>
+  <div class="bar"></div>
+  <div class="ticks"><span id="tLow"></span><span id="tMid"></span><span id="tHigh"></span></div>
+  <div class="none"><i></i> no value</div>
+</div>
+<div id="drop">
+  <div class="big">Drop your CSV report here</div>
+  <div class="sub">or click to browse for the file. Nothing is uploaded anywhere —
+    the report is read right in your browser and plotted by Zip (US) / FSA (Canada).</div>
+  <div class="btn">Choose CSV file</div>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const map = L.map("map", { zoomControl: true, preferCanvas: true });
+// ponytail: CARTO Positron instead of OSM tiles — OSM blocks requests with no Referer (file:// pages)
+L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+  maxZoom: 18, subdomains: "abcd",
+  attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+}).addTo(map);
+map.setView([43.5, -80.5], 5); // default: somewhere between most markets
+
+let layer = null, rows = [], numericCols = [], metricCol = null;
+let boundaryState = "none"; // none | loading | ready | failed
+
+// ponytail: boundaries.js (11MB) lazy-loaded via script tag after first CSV — works on file:// unlike fetch()
+function ensureBoundaries() {
+  if (boundaryState !== "none" || typeof BOUNDARIES !== "undefined") return;
+  boundaryState = "loading";
+  $("summary").insertAdjacentHTML("beforeend", ' · <span id="bndLoad">loading zip boundaries…</span>');
+  const s = document.createElement("script");
+  s.src = "boundaries.js";
+  s.onload = () => { boundaryState = "ready"; const b = $("bndLoad"); if (b) b.remove(); draw(); };
+  s.onerror = () => {
+    boundaryState = "failed"; const b = $("bndLoad"); if (b) b.remove();
+    banner("Boundary file (boundaries.js) not found next to index.html — showing circles instead.");
+  };
+  document.head.appendChild(s);
+}
+
+// ---- helpers ------------------------------------------------------------
+function normalizeCode(raw) {
+  const s = String(raw == null ? "" : raw).trim().toUpperCase().replace(/\s+/g, "");
+  if (!s) return null;
+  if (/[A-Z]/.test(s[0])) return s.replace(/[^A-Z0-9]/g, "").slice(0, 3); // FSA
+  const digits = s.replace(/\D/g, "");
+  return digits ? digits.slice(0, 5) : null;                              // Zip
+}
+function toNum(v) {
+  if (v == null || v === "") return null;
+  const n = parseFloat(String(v).replace(/[,$%\s]/g, ""));
+  return isFinite(n) ? n : null;
+}
+function fmt(n) {
+  if (n == null) return "–";
+  return n >= 100 || Number.isInteger(n)
+    ? Math.round(n).toLocaleString()
+    : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+function pct(sorted, p) {
+  if (!sorted.length) return 0;
+  return sorted[Math.min(sorted.length - 1, Math.floor(p * (sorted.length - 1)))];
+}
+const STOPS = [[255,255,204],[168,221,136],[65,171,93],[0,104,55]]; // YlGn: green = highest
+function heat(t) { // t in [0,1] -> YlOrRd color string
+  const x = Math.max(0, Math.min(1, t)) * (STOPS.length - 1);
+  const i = Math.min(STOPS.length - 2, Math.floor(x)), f = x - i;
+  const c = STOPS[i].map((a, k) => Math.round(a + (STOPS[i + 1][k] - a) * f));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+function banner(msg) {
+  $("banner").textContent = msg;
+  $("banner").classList.remove("hidden");
+}
+
+// ---- CSV loading ---------------------------------------------------------
+function handleFile(file) {
+  Papa.parse(file, {
+    header: true, skipEmptyLines: "greedy", transformHeaders: h => h.replace(/^\uFEFF/, "").trim(),
+    complete: res => loadRows(res.data, file.name),
+    error: () => banner("Could not read that file. Is it a valid CSV?")
+  });
+}
+
+function loadRows(data, fname) {
+  const col = i => Object.keys(i)[0];
+  if (!data.length) return banner(`"${fname}" appears to be empty.`);
+  const headers = Object.keys(data[0]);
+  const zipCol = headers.find(h => h.toLowerCase().replace(/[\s_]/g, "") === "ziporfsa");
+  if (!zipCol) return banner('Couldn\'t find a "ZipOrFSA" column — please upload the standard season report CSV.');
+
+  rows = []; const dupes = new Set(); const unmatched = [];
+  for (const r of data) {
+    const code = normalizeCode(r[zipCol]);
+    if (!code) continue;
+    const rec = { code, raw: r, vals: {} };
+    for (const h of headers) if (h !== zipCol) rec.vals[h] = toNum(r[h]);
+    const existing = rows.find(x => x.code === code);
+    if (existing) { dupes.add(code); continue; }   // ponytail: keep first row on duplicates, report count
+    if (!CENTROIDS[code]) { unmatched.push(code); continue; }
+    rows.push(rec);
+  }
+
+  // numeric columns: >50% of non-empty values parse as numbers
+  numericCols = headers.filter(h => {
+    let nums = 0, nonEmpty = 0;
+    for (const r of rows) {
+      const v = r.raw[h];
+      if (v != null && v !== "") { nonEmpty++; if (r.vals[h] != null) nums++; }
+    }
+    return nonEmpty > 0 && nums / nonEmpty > 0.5;
+  });
+  if (!numericCols.length) numericCols = headers.filter(h => h !== zipCol);
+
+  metricCol = numericCols.includes("OrderCount") ? "OrderCount" : numericCols[0];
+  const sel = $("metric");
+  sel.innerHTML = numericCols.map(h => `<option ${h === metricCol ? "selected" : ""}>${esc(h)}</option>`).join("");
+  sel.classList.remove("hidden");
+  $("hideZeroWrap").classList.remove("hidden");
+  $("drop").classList.add("hidden");
+
+  const bits = [`${data.length} rows`, `${rows.length} on map`];
+  if (unmatched.length || dupes.size) {
+    bits.push(`<details><summary style="cursor:pointer;color:#2470a8">${
+      unmatched.length} not found${dupes.size ? ` · ${dupes.size} duplicates kept first` : ""}</summary>` +
+      `<div style="max-height:80px;overflow:auto">${unmatched.map(esc).join(", ") || "–"}</div></details>`);
+  }
+  $("summary").innerHTML = bits.join(" · ");
+
+  ensureBoundaries(); // redraws itself when loaded
+  draw();
+}
+
+// ---- rendering -----------------------------------------------------------
+function draw() {
+  if (layer) layer.remove();
+  layer = L.layerGroup().addTo(map);
+
+  const hideZero = $("hideZero").checked;
+  const shown = rows.filter(r => !hideZero || r.vals[metricCol] !== 0);
+  const sorted = shown.map(r => r.vals[metricCol]).filter(v => v != null).sort((a, b) => a - b);
+  const lo = pct(sorted, 0.2), hi = pct(sorted, 0.8), mid = pct(sorted, 0.5);
+  const haveBounds = typeof BOUNDARIES !== "undefined";
+  const bounds = L.latLngBounds();
+
+  function tOf(r) {
+    const v = r.vals[metricCol];
+    return v == null || hi === lo ? null : Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
+  }
+
+  for (const r of shown) {
+    const t = tOf(r);
+    const fill = t == null ? "#9aa7b1" : heat(t);
+    const polys = haveBounds && BOUNDARIES[r.code];
+    if (polys) {
+      for (const ring of polys) {
+        const style = { color: "#5a6b7b", weight: 0.75, fillColor: fill, fillOpacity: 0.75 };
+        L.polygon(ring, style)
+          .bindTooltip(`${r.code} · ${esc(metricCol)}: ${fmt(r.vals[metricCol])}`)
+          .bindPopup(popupHtml(r))
+          .on("mouseover", e => e.target.setStyle({ weight: 2.5 }))
+          .on("mouseout", e => e.target.setStyle({ weight: 0.75 }))
+          .addTo(layer);
+        bounds.extend(ring);
+      }
+    } else {
+      L.circleMarker(CENTROIDS[r.code], {
+        radius: 5 + 16 * (t == null ? 0.15 : Math.sqrt(t)),
+        color: fill, weight: 1, fillColor: fill, fillOpacity: 0.75
+      })
+        .bindTooltip(`${r.code} · ${esc(metricCol)}: ${fmt(r.vals[metricCol])}`)
+        .bindPopup(popupHtml(r))
+        .addTo(layer);
+      bounds.extend(CENTROIDS[r.code]);
+    }
+  }
+
+  $("legendTitle").textContent = metricCol;
+  $("tLow").textContent = fmt(lo); $("tMid").textContent = fmt(mid); $("tHigh").textContent = fmt(hi);
+  $("legend").classList.remove("hidden");
+
+  if (bounds.isValid()) map.fitBounds(bounds.pad(0.15));
+}
+
+const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function cellVal(v) { // dirty data: clamp very long values (e.g. CityList) behind a toggle
+  const s = String(v).trim();
+  return s.length > 120
+    ? `<details><summary>${esc(s.slice(0, 100))}… (${s.length.toLocaleString()} chars)</summary>` +
+       `<div style="margin-top:4px;max-width:250px;white-space:pre-wrap">${esc(s)}</div></details>`
+    : `<b>${esc(s)}</b>`;
+}
+function popupHtml(r) {
+  const title = `<b style="font-size:15px">${r.code}</b>`;
+  const rowsHtml = Object.entries(r.raw)
+    .filter(([, v]) => v != null && v !== "")
+    .map(([k, v]) => `<tr><td>${esc(k)}</td><td>${cellVal(v)}</td></tr>`)
+    .join("");
+  return `<div style="max-height:300px;overflow:auto">${title}<table>${rowsHtml}</table></div>`;
+}
+
+// ---- wiring --------------------------------------------------------------
+$("drop").addEventListener("click", () => $("file").click());
+$("uploadAgain").addEventListener("click", () => $("file").click());
+$("file").addEventListener("change", e => { if (e.target.files[0]) handleFile(e.target.files[0]); e.target.value = ""; });
+$("metric").addEventListener("change", e => { metricCol = e.target.value; draw(); });
+$("hideZero").addEventListener("change", draw);
+
+const drop = $("drop");
+["dragover", "dragenter"].forEach(ev =>
+  document.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("hover"); }));
+["dragleave", "drop"].forEach(ev =>
+  document.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("hover"); }));
+document.addEventListener("drop", e => {
+  const f = e.dataTransfer && e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+</script>
+<div style="position:fixed;bottom:0;left:0;z-index:1000;font-size:10px;color:#888;background:rgba(255,255,255,.7);padding:1px 6px">
+  Zip/FSA locations &copy; GeoNames (CC BY 4.0)
+</div>
+</body>
+</html>

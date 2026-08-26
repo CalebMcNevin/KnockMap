@@ -1,0 +1,3 @@
+# raw geo source downloads (re-fetch via commands in build_boundaries.py)
+data/
+.ruff_cache/
