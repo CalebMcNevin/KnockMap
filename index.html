@@ -517,16 +517,15 @@ function draw() {
     const fill = t == null ? "#7A9189" : heat(t); // no-value = wm-neutral-400
     const polys = haveBounds && BOUNDARIES[r.code];
     if (polys) {
-      for (const poly of polys) { // poly = [outer ring, hole rings...] -- Leaflet cuts the holes (e.g. L4H wraps L0J/Kleinburg)
-        const style = { color: "#7A9189", weight: 0.75, fillColor: fill, fillOpacity: 0.55 }; // wm-neutral-400 stroke
-        L.polygon(poly, style)
-          .bindTooltip(`${r.code} · ${esc(metricCol)}: ${fmtM(metricCol, r.vals[metricCol])}`)
-          .bindPopup(popupHtml(r))
-          .on("mouseover", e => e.target.setStyle({ weight: 2.5 }))
-          .on("mouseout", e => e.target.setStyle({ weight: 0.75 }))
-          .addTo(layer);
-        bounds.extend(poly[0]);
-      }
+      // one multipolygon layer per code (poly = [outer, holes...]): all disjoint parts hover/highlight together
+      const style = { color: "#7A9189", weight: 0.75, fillColor: fill, fillOpacity: 0.55 }; // wm-neutral-400 stroke
+      const p = L.polygon(polys, style)
+        .bindTooltip(`${r.code} · ${esc(metricCol)}: ${fmtM(metricCol, r.vals[metricCol])}`, { sticky: true })
+        .bindPopup(popupHtml(r))
+        .on("mouseover", e => e.target.setStyle({ weight: 2.5 }))
+        .on("mouseout", e => e.target.setStyle({ weight: 0.75 }))
+        .addTo(layer);
+      bounds.extend(p.getBounds());
     } else if (CENTROIDS[r.code]) {
       L.circleMarker(CENTROIDS[r.code], {
         radius: 5 + 16 * (t == null ? 0.15 : Math.sqrt(t)),
