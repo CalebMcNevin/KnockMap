@@ -62,6 +62,11 @@
   #summary { color: var(--wm-gray-700); font-size: 13px; }
   #summary details { display: inline-block; }
   #summary a, #summary summary { color: var(--wm-green-600); }
+  #seasonInfo { /* ver-badge pattern from the style guide */
+    background: var(--wm-green-100); color: var(--wm-green-800);
+    border-radius: var(--radius-pill); padding: 2px 10px;
+    font-size: 11px; font-weight: 600; line-height: 1.4;
+  }
 
   #map { height: calc(100vh - 62px); width: 100vw; background: var(--bg); }
   .hidden { display: none !important; }
@@ -109,6 +114,28 @@
   .leaflet-popup table { border-collapse: collapse; }
   .leaflet-popup td { padding: 2px 10px 2px 0; white-space: nowrap; }
   .leaflet-popup td:first-child { color: var(--wm-gray-700); font-size: 13px; }
+  .leaflet-popup tr.gh td {
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--wm-green-700); background: var(--wm-neutral-50);
+    padding: 4px 10px 4px 0; border-top: 1px solid var(--wm-neutral-100);
+  }
+  .leaflet-popup tr:first-child.gh td { border-top: none; }
+
+  dialog#sourcesDialog {
+    border: 1px solid var(--wm-neutral-200); border-radius: var(--radius);
+    box-shadow: var(--shadow-md); padding: 20px; max-width: 560px;
+    font: 15px/1.6 Inter, ui-sans-serif, sans-serif; color: var(--ink);
+  }
+  dialog#sourcesDialog::backdrop { background: rgba(17, 24, 39, .45); }
+  dialog#sourcesDialog h2 {
+    font: 600 17px/1.15 "DM Sans", Inter, ui-sans-serif, sans-serif;
+    color: var(--wm-green-700); margin: 0 0 12px;
+  }
+  dialog#sourcesDialog table { border-collapse: collapse; }
+  dialog#sourcesDialog td { padding: 4px 16px 4px 0; vertical-align: top; }
+  dialog#sourcesDialog td:first-child { color: var(--wm-gray-700); font-size: 13px; white-space: nowrap; }
+  dialog#sourcesDialog .fine { color: var(--wm-gray-700); font-size: 13px; margin: 14px 0 16px; }
+  dialog#sourcesDialog #sourcesClose { color: var(--wm-green-700); }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -122,29 +149,46 @@
 
 <header>
   <h1>Door-Knocking Report Map</h1>
+  <span id="seasonInfo" class="hidden"></span>
   <label id="uploadAgain">↻ New CSV <input type="file" id="file" accept=".csv,text/csv" class="hidden"></label>
   <label>Color/size by <select id="metric" class="hidden"></select></label>
   <label id="scaleWrap" class="hidden">Scale
     <select id="scaleMode" title="Color ramp range. auto = 20th-80th percentile of the data (one outlier can't wash out the map)">
       <option value="auto">auto</option>
-      <option value="full">min–max</option>
+      <option value="full">min to max</option>
       <option value="custom">custom</option>
     </select>
   </label>
-  <label id="logWrap" class="hidden" title="Logarithmic color scale — auto turns it on when the filtered data is right-skewed (bulk squashed at the bottom of the ramp)">Log
+  <label id="logWrap" class="hidden" title="Logarithmic color scale: auto turns it on when the filtered data is right-skewed (bulk squashed at the bottom of the ramp)">Log
     <select id="logMode"><option value="auto">auto</option><option value="on">on</option><option value="off">off</option></select>
   </label>
   <label id="filterWrap" class="hidden">Filter <select id="filterCol"></select> ≥
-    <input type="number" id="filterIn" step="any" placeholder="any" style="width:70px" title="Hide rows below this threshold (junk / low-significance data) — also excluded from the color scale">
+    <input type="number" id="filterIn" step="any" placeholder="any" style="width:70px" title="Hide rows below this threshold (junk / low-significance data), also excluded from the color scale">
   </label>
   <span id="customRange" class="hidden">
-    <input type="number" id="minIn" placeholder="min" step="any"> –
+    <input type="number" id="minIn" placeholder="min" step="any"> and
     <input type="number" id="maxIn" placeholder="max" step="any">
   </span>
   <label class="hidden" id="hideZeroWrap"><input type="checkbox" id="hideZero"> Hide zeros</label>
   <button id="fitBtn" class="hidden" title="Zoom to all loaded data">Fit</button>
+  <button id="sourcesBtn" title="Boundary, housing-count and basemap sources & dates">Data sources</button>
   <span id="summary"></span>
 </header>
+<dialog id="sourcesDialog">
+  <h2>Data sources & dates</h2>
+  <table>
+    <tr><td>US zip boundaries</td><td>US Census Bureau: 2020 ZCTA cartographic boundaries (public domain)</td></tr>
+    <tr><td>Canada FSA boundaries</td><td>Statistics Canada: 2021 FSA boundaries (Open Government Licence, Canada)</td></tr>
+    <tr><td>US home counts</td><td>US Census Bureau: American Community Survey 2023, 5-year estimates, occupied housing units</td></tr>
+    <tr><td>Canada home counts</td><td>Statistics Canada: 2021 Census Profile, private dwellings occupied by usual residents</td></tr>
+    <tr><td>Zip/FSA locations (no boundary)</td><td>GeoNames postal codes (CC BY 4.0, geonames.org)</td></tr>
+    <tr><td>Basemap</td><td>Esri World Light Gray Canvas, Tiles &copy; Esri</td></tr>
+  </table>
+  <p class="fine">Census figures lag today's housing stock, and ACS values are estimates, not counts.
+    US Census ZCTAs approximate (but don't exactly match) postal zip codes, so some zips appear as circles.
+    "CensusHomes" counts occupied private dwellings only; seasonal and vacant homes are excluded.</p>
+  <button id="sourcesClose">Close</button>
+</dialog>
 <div id="banner" class="hidden"></div>
 <div id="map"></div>
 <div id="legend" class="hidden">
@@ -155,7 +199,7 @@
 </div>
 <div id="drop">
   <div class="big">Drop your CSV report here</div>
-  <div class="sub">or click to browse for the file. Nothing is uploaded anywhere —
+  <div class="sub">or click to browse for the file. Nothing is uploaded anywhere:
     the report is read right in your browser and plotted by Zip (US) / FSA (Canada).</div>
   <div class="btn">Choose CSV file</div>
 </div>
@@ -186,7 +230,7 @@ function ensureBoundaries() {
   s.onload = () => { boundaryState = "ready"; const b = $("bndLoad"); if (b) b.remove(); draw(); };
   s.onerror = () => {
     boundaryState = "failed"; const b = $("bndLoad"); if (b) b.remove();
-    banner("Boundary file (boundaries.js) not found next to index.html — showing circles instead.");
+    banner("Boundary file (boundaries.js) not found next to index.html: showing circles instead.");
   };
   document.head.appendChild(s);
 }
@@ -205,17 +249,18 @@ function toNum(v) {
   return isFinite(n) ? n : null;
 }
 function fmt(n) {
-  if (n == null) return "–";
+  if (n == null) return "n/a";
   return n >= 100 || Number.isInteger(n)
     ? Math.round(n).toLocaleString()
     : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 const isPctCol = c => /pct|percent|rate/i.test(c);
-const fmtM = (c, v) => fmt(v) + (isPctCol(c) ? "%" : "");
+const isMoneyCol = c => /amount|revenue/i.test(c); // NOT "sale" -- SalesPer100HomesKnocked isn't dollars
+const fmtM = (c, v) => (isMoneyCol(c) ? "$" : "") + fmt(v) + (isPctCol(c) ? "%" : "");
 const fmtTick = (c, v) => { // legend: compact — 1 decimal max, integers for big values
-  if (v == null) return "–";
+  if (v == null) return "n/a";
   const r = Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
-  return r.toLocaleString() + (isPctCol(c) ? "%" : "");
+  return (isMoneyCol(c) ? "$" : "") + r.toLocaleString() + (isPctCol(c) ? "%" : "");
 };
 function pct(sorted, p) {
   if (!sorted.length) return 0;
@@ -244,23 +289,33 @@ function handleFile(file) {
 
 // group metric columns into labeled sections; name-pattern based so unknown future columns still land somewhere
 const CENSUS_COLS = new Set(["CensusHomes", "PercentageOfCensusHomesKnocked", "AddressCoveragePct"]);
+const GROUP_ORDER = ["Counts", "Per 100", "Rates", "Revenue", "Census", "Other"];
+const classifyCol = h =>
+  CENSUS_COLS.has(h) ? "Census"
+  : /per100/i.test(h) ? "Per 100"
+  : /rate|percent|pct/i.test(h) ? "Rates"
+  : /revenue|amount|sale/i.test(h) ? "Revenue"
+  : /count|homes/i.test(h) ? "Counts"
+  : "Other";
 function optgroupHtml(cols, selected) {
   const groups = {};
-  for (const h of cols) {
-    const g = CENSUS_COLS.has(h) ? "Census"
-      : /per100/i.test(h) ? "Per 100"
-      : /rate|percent|pct/i.test(h) ? "Rates"
-      : /revenue|amount|sale/i.test(h) ? "Revenue"
-      : /count|homes/i.test(h) ? "Counts"
-      : "Other";
-    (groups[g] = groups[g] || []).push(h);
-  }
-  return ["Counts", "Per 100", "Rates", "Revenue", "Census", "Other"]
-    .filter(g => groups[g])
+  for (const h of cols) (groups[classifyCol(h)] = groups[classifyCol(h)] || []).push(h);
+  return GROUP_ORDER.filter(g => groups[g])
     .map(g => `<optgroup label="${g}">` +
       groups[g].map(h => `<option ${h === selected ? "selected" : ""}>${esc(h)}</option>`).join("") +
       `</optgroup>`)
     .join("");
+}
+
+// pull the From/To date range out of the standard export filename (no-op if absent/unparseable)
+function parseSeason(fname) {
+  const m = /_From_([A-Za-z]+_\d{1,2}_\d{4})_To_([A-Za-z]+_\d{1,2}_\d{4})_/.exec(fname);
+  if (!m) return null;
+  const d = s => { const t = Date.parse(s.replace(/_/g, " ")); return isNaN(t) ? null : new Date(t); };
+  const from = d(m[1]), to = d(m[2]);
+  if (!from || !to) return null;
+  const f = x => x.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return `${f(from)} to ${f(to)}`;
 }
 
 function loadRows(data, fname) {
@@ -268,9 +323,11 @@ function loadRows(data, fname) {
   if (!data.length) return banner(`"${fname}" appears to be empty.`);
   const headers = Object.keys(data[0]);
   const zipCol = headers.find(h => h.toLowerCase().replace(/[\s_]/g, "") === "ziporfsa");
-  if (!zipCol) return banner('Couldn\'t find a "ZipOrFSA" column — please upload the standard season report CSV.');
+  if (!zipCol) return banner('Couldn\'t find a "ZipOrFSA" column: please upload the standard season report CSV.');
 
   rows = []; const dupes = new Set(); const unmatched = [];
+  const season = parseSeason(fname), si = $("seasonInfo");
+  if (season) { si.textContent = season; si.classList.remove("hidden"); } else si.classList.add("hidden");
   for (const r of data) {
     const code = normalizeCode(r[zipCol]);
     if (!code) continue;
@@ -318,10 +375,10 @@ function loadRows(data, fname) {
   });
   if (!numericCols.length) numericCols = headers.filter(h => h !== zipCol);
 
-  metricCol = numericCols.includes("OrderCount") ? "OrderCount" : numericCols[0];
+  metricCol = null; // chosen in applyControls (saved user prefs or first-run defaults)
   fitPending = true; // new file: re-fit viewport once
   const sel = $("metric");
-  sel.innerHTML = optgroupHtml(numericCols, metricCol);
+  sel.innerHTML = optgroupHtml(numericCols);
   sel.classList.remove("hidden");
   $("hideZeroWrap").classList.remove("hidden");
   $("scaleWrap").classList.remove("hidden");
@@ -330,19 +387,47 @@ function loadRows(data, fname) {
   $("fitBtn").classList.remove("hidden");
   const fSel = $("filterCol");
   fSel.innerHTML = '<option value="">(none)</option>' + optgroupHtml(numericCols);
-  fSel.value = "KnockCount";
+  applyControls();
   $("drop").classList.add("hidden");
 
   const bits = [`${data.length} rows`, `<span id="shownCount">${rows.length}</span> on map`];
   if (unmatched.length || dupes.size) {
     bits.push(`<details><summary style="cursor:pointer;color:var(--wm-green-600)">${
       unmatched.length} not found${dupes.size ? ` · ${dupes.size} duplicates kept first` : ""}</summary>` +
-      `<div style="max-height:80px;overflow:auto;color:var(--wm-gray-700)">${unmatched.map(esc).join(", ") || "–"}</div></details>`);
+      `<div style="max-height:80px;overflow:auto;color:var(--wm-gray-700)">${unmatched.map(esc).join(", ") || "none"}</div></details>`);
   }
   $("summary").innerHTML = bits.join(" · ");
 
   ensureBoundaries(); // redraws itself when loaded
   draw();
+}
+
+// ---- control defaults & persistence -------------------------------------
+// first run: the house defaults. afterwards: whatever the user last chose.
+function applyControls() {
+  let p = null;
+  try { p = JSON.parse(localStorage.getItem("dkm-prefs") || "null"); } catch (e) { /* file:// quirks */ }
+  const metric = p && numericCols.includes(p.metric) ? p.metric
+    : numericCols.includes("SalesPer100HomesKnocked") ? "SalesPer100HomesKnocked"
+    : numericCols.includes("OrderCount") ? "OrderCount" : numericCols[0];
+  metricCol = metric;
+  $("metric").value = metric;
+  $("scaleMode").value = p && ["auto", "full", "custom"].includes(p.scale) ? p.scale : "auto";
+  $("customRange").classList.toggle("hidden", $("scaleMode").value !== "custom");
+  $("logMode").value = p && ["auto", "on", "off"].includes(p.log) ? p.log : "auto";
+  const fCol = p && p.fCol ? p.fCol : "KnockCount";
+  const fOpts = $("filterCol");
+  fOpts.value = [...fOpts.options].some(o => o.value === fCol) ? fCol : "";
+  $("filterIn").value = p && p.fVal != null ? p.fVal : (fOpts.value === "KnockCount" ? "20" : "");
+  $("hideZero").checked = p ? !!p.hideZero : false;
+}
+function savePrefs() {
+  try {
+    localStorage.setItem("dkm-prefs", JSON.stringify({
+      metric: metricCol, scale: $("scaleMode").value, log: $("logMode").value,
+      fCol: $("filterCol").value, fVal: $("filterIn").value, hideZero: $("hideZero").checked
+    }));
+  } catch (e) { /* storage unavailable: defaults only */ }
 }
 
 // ---- rendering -----------------------------------------------------------
@@ -422,6 +507,7 @@ function draw() {
   $("legend").classList.remove("hidden");
 
   const sc = $("shownCount"); if (sc) sc.textContent = shown.length;
+  savePrefs();
   if (bounds.isValid()) lastBounds = bounds; // no auto-fit on option changes; only on new CSV (or Fit button)
   if (fitPending && bounds.isValid()) { map.fitBounds(bounds.pad(0.15)); fitPending = false; }
 }
@@ -430,19 +516,25 @@ const esc = s => String(s).replace(/[&<>"']/g, c =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function cellVal(k, v) { // dirty data: clamp very long values (e.g. CityList) behind a toggle
   const s = String(v).trim();
-  const shown = isPctCol(k) && toNum(s) != null ? `${fmt(toNum(s))}%` : null;
+  const n = toNum(s);
+  const shown = n != null ? (isMoneyCol(k) ? "$" : "") + fmt(n) + (isPctCol(k) ? "%" : "") : s;
   return s.length > 120
     ? `<details><summary>${esc(s.slice(0, 100))}… (${s.length.toLocaleString()} chars)</summary>` +
        `<div style="margin-top:4px;max-width:250px;white-space:pre-wrap">${esc(s)}</div></details>`
-    : `<b>${esc(shown != null ? shown : s)}</b>`;
+    : `<b>${esc(shown)}</b>`;
 }
 function popupHtml(r) {
   const title = `<b style="font-size:15px">${r.code}</b>`;
-  const rowsHtml = Object.entries(r.raw)
-    .filter(([, v]) => v != null && v !== "")
-    .map(([k, v]) => `<tr><td>${esc(k)}</td><td>${cellVal(k, v)}</td></tr>`)
-    .join("");
-  return `<div style="max-height:300px;overflow:auto">${title}<table>${rowsHtml}</table></div>`;
+  const groups = {};
+  for (const [k, v] of Object.entries(r.raw)) {
+    if (v == null || v === "" || k.toLowerCase() === "citylist" || k.toLowerCase() === "ziporfsa") continue; // title already shows the code; citylist is dirty
+    (groups[classifyCol(k)] = groups[classifyCol(k)] || []).push([k, v]);
+  }
+  const sections = GROUP_ORDER.filter(g => groups[g]).map(g =>
+    `<tr class="gh"><td colspan="2">${g}</td></tr>` +
+    groups[g].map(([k, v]) => `<tr><td>${esc(k)}</td><td>${cellVal(k, v)}</td></tr>`).join("")
+  ).join("");
+  return `<div style="max-height:320px;overflow:auto">${title}<table>${sections}</table></div>`;
 }
 
 // ---- wiring --------------------------------------------------------------
@@ -455,6 +547,8 @@ $("scaleMode").addEventListener("change", e => {
   draw();
 });
 $("fitBtn").addEventListener("click", () => { if (lastBounds) map.fitBounds(lastBounds.pad(0.15)); });
+$("sourcesBtn").addEventListener("click", () => $("sourcesDialog").showModal());
+$("sourcesClose").addEventListener("click", () => $("sourcesDialog").close());
 $("logMode").addEventListener("change", draw);
 ["filterCol", "filterIn"].forEach(id => $(id).addEventListener("input", draw));
 ["minIn", "maxIn"].forEach(id => $(id).addEventListener("input", draw));
