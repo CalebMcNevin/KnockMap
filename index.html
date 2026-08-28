@@ -267,7 +267,7 @@ let boundaryState = "none", fitPending = true; // none | loading | ready | faile
 function ensureBoundaries() {
   if (boundaryState !== "none" || typeof BOUNDARIES !== "undefined") return;
   boundaryState = "loading";
-  $("summary").insertAdjacentHTML("beforeend", ' · <span id="bndLoad">loading zip boundaries…</span>');
+  $("summary").insertAdjacentHTML("beforeend", ' <span id="bndLoad">· loading zip boundaries…</span>'); // separator inside the span so removal cleans up
   const s = document.createElement("script");
   s.src = "boundaries.js";
   s.onload = () => { boundaryState = "ready"; const b = $("bndLoad"); if (b) b.remove(); draw(); };
@@ -368,7 +368,7 @@ function loadRows(data, fname) {
   const zipCol = headers.find(h => h.toLowerCase().replace(/[\s_]/g, "") === "ziporfsa");
   if (!zipCol) return banner('Couldn\'t find a "ZipOrFSA" column: please upload the standard season report CSV.');
 
-  rows = []; const dupes = new Set(); const unmatched = [];
+  rows = []; const dupes = new Set();
   const season = parseSeason(fname), si = $("seasonInfo");
   if (season) { si.textContent = season; si.classList.remove("hidden"); } else si.classList.add("hidden");
   for (const r of data) {
@@ -378,7 +378,6 @@ function loadRows(data, fname) {
     for (const h of headers) if (h !== zipCol) rec.vals[h] = toNum(r[h]);
     const existing = rows.find(x => x.code === code);
     if (existing) { dupes.add(code); continue; }   // ponytail: keep first row on duplicates, report count
-    if (!CENTROIDS[code]) { unmatched.push(code); continue; }
     rows.push(rec);
   }
 
@@ -433,11 +432,7 @@ function loadRows(data, fname) {
   $("drop").classList.add("hidden");
 
   const bits = [`${data.length} rows`, `<span id="shownCount">${rows.length}</span> on map`];
-  if (unmatched.length || dupes.size) {
-    bits.push(`<details><summary style="cursor:pointer;color:var(--wm-green-600)">${
-      unmatched.length} not found${dupes.size ? ` · ${dupes.size} duplicates kept first` : ""}</summary>` +
-      `<div style="max-height:80px;overflow:auto;color:var(--wm-gray-700)">${unmatched.map(esc).join(", ") || "none"}</div></details>`);
-  }
+  if (dupes.size) bits.push(`${dupes.size} duplicates kept first`);
   $("summary").innerHTML = bits.join(" · ");
 
   ensureBoundaries(); // redraws itself when loaded
@@ -522,17 +517,17 @@ function draw() {
     const fill = t == null ? "#7A9189" : heat(t); // no-value = wm-neutral-400
     const polys = haveBounds && BOUNDARIES[r.code];
     if (polys) {
-      for (const ring of polys) {
+      for (const poly of polys) { // poly = [outer ring, hole rings...] -- Leaflet cuts the holes (e.g. L4H wraps L0J/Kleinburg)
         const style = { color: "#7A9189", weight: 0.75, fillColor: fill, fillOpacity: 0.55 }; // wm-neutral-400 stroke
-        L.polygon(ring, style)
+        L.polygon(poly, style)
           .bindTooltip(`${r.code} · ${esc(metricCol)}: ${fmtM(metricCol, r.vals[metricCol])}`)
           .bindPopup(popupHtml(r))
           .on("mouseover", e => e.target.setStyle({ weight: 2.5 }))
           .on("mouseout", e => e.target.setStyle({ weight: 0.75 }))
           .addTo(layer);
-        bounds.extend(ring);
+        bounds.extend(poly[0]);
       }
-    } else {
+    } else if (CENTROIDS[r.code]) {
       L.circleMarker(CENTROIDS[r.code], {
         radius: 5 + 16 * (t == null ? 0.15 : Math.sqrt(t)),
         color: fill, weight: 1, fillColor: fill, fillOpacity: 0.55
@@ -548,7 +543,22 @@ function draw() {
   $("tLow").textContent = fmtTick(metricCol, lo); $("tMid").textContent = fmtTick(metricCol, mid); $("tHigh").textContent = fmtTick(metricCol, hi);
   $("legend").classList.remove("hidden");
 
-  const sc = $("shownCount"); if (sc) sc.textContent = shown.length;
+  // rows that can never draw: no boundary polygon and no centroid (typos, retired codes).
+  // Centroid-less codes WITH a polygon (L3L, R5J.., S7A.. -- missing from GeoNames) still draw.
+  const nf = haveBounds
+    ? shown.filter(r => !BOUNDARIES[r.code] && !CENTROIDS[r.code]).map(r => r.code)
+    : [];
+  let nfEl = $("nfCount");
+  if (nf.length && !nfEl) {
+    $("summary").insertAdjacentHTML("beforeend", ' · <span id="nfCount"></span>');
+    nfEl = $("nfCount");
+  }
+  if (nfEl) {
+    if (nf.length) { nfEl.textContent = `${nf.length} not found`; nfEl.title = nf.join(", "); }
+    else nfEl.remove();
+  }
+
+  const sc = $("shownCount"); if (sc) sc.textContent = shown.length - nf.length;
   savePrefs();
   if (fitPending && bounds.isValid()) { map.fitBounds(bounds.pad(0.15)); fitPending = false; } // auto-fit once per CSV
 }

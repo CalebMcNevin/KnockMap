@@ -9,11 +9,11 @@
 - Stack: one `index.html` of vanilla JS (Leaflet 1.9 + PapaParse via CDN), no framework, no backend, no build step; works over HTTP or `file://`
 - UI must follow the Weed Man brand guide at `../STYLE_GUIDE.md` (tokens are CSS vars in `:root`; canvas colors hardcode the same hex values since canvas cannot use CSS vars)
 - Generated data files, never hand-edit, regenerate with the build scripts:
-  - `centroids.js` (zip/FSA lat-lng lookup) from `python3 build_centroids.py`
-  - `boundaries.js` (zip/FSA polygon rings, ~11MB) from `python3 build_boundaries.py` (see its header for the full download + mapshaper pipeline)
+  - `centroids.js` from `python3 build_centroids.py` (GeoNames); GeoNames' free CA/US files lack some codes (e.g. L3L, R5J..R5T, S7A..S7C, T6Y, V7Z); rows for centroid-less codes draw via `BOUNDARIES` (circle fallback skipped), and draw-time "not found" counts only rows with neither boundary nor centroid
+  - `boundaries.js` (zip/FSA polygons with holes; polygon = `[outer ring, hole rings...]` in `[lat,lng]`, ~11MB) from `python3 build_boundaries.py` (see its header for the full download + mapshaper pipeline). Holes are load-bearing: L4H wraps around Kleinburg (L0J), and Leaflet cuts holes from multi-ring polygons
   - `census_homes.js` (occupied housing counts) from `python3 build_census_homes.py`
 - `build_census_homes.py` reads `US_CENSUS_API_KEY` from gitignored `.env`; never print, echo, or commit that key
-- Distribution zip `DoorKnockingMap.zip` is a build artifact, gitignored; rebuild with `zip -9 DoorKnockingMap.zip index.html centroids.js boundaries.js census_homes.js README.txt example.csv *.png`
+- Distribution zip `DoorKnockingMap.zip` is a build artifact, gitignored; rebuild with `zip -9 DoorKnockingMap.zip index.html centroids.js boundaries.js census_homes.js README.txt example.csv door-knocking.png zip-fsa-report.png report-settings.png` (name the three screenshots explicitly; `*.png` sweeps in debug screenshots)
 - Dev server: `python3 -m http.server 8901` from the repo root
 - Map tiles come from Esri World Light Gray Canvas (no key, no Referer requirement); do not switch back to OSM tiles (blocks `file://`) or CARTO (now requires an API key)
 
