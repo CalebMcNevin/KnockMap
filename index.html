@@ -357,10 +357,11 @@ const classifyCol = h =>
   : /revenue|amount|sale/i.test(h) ? "Revenue"
   : /count|homes/i.test(h) ? "Counts"
   : "Other";
-const HIDDEN_DISPLAY = new Set(["NoCount"]); // parsed for filters/math but kept out of dropdown and popups
+const HIDDEN_DISPLAY = new Set(["NoCount", "AvgRevenuePer100Homes"]); // parsed for filters/math but kept out of dropdown and popups
+const HIDDEN_DROPDOWN = new Set(["AreaKm2"]); // reference-only columns: popup yes, metric dropdown no
 function optgroupHtml(cols, selected) {
   const groups = {};
-  for (const h of cols) if (!HIDDEN_DISPLAY.has(h)) (groups[classifyCol(h)] = groups[classifyCol(h)] || []).push(h);
+  for (const h of cols) if (!HIDDEN_DISPLAY.has(h) && !HIDDEN_DROPDOWN.has(h)) (groups[classifyCol(h)] = groups[classifyCol(h)] || []).push(h);
   return GROUP_ORDER.filter(g => groups[g])
     .map(g => `<optgroup label="${g}">` +
       groups[g].map(h => `<option ${h === selected ? "selected" : ""}>${esc(h)}</option>`).join("") +

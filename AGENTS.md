@@ -94,7 +94,7 @@ Default section order:
 - No long dashes (en/em) in user-visible strings; use words ("to", ":", "n/a")
 - Column display conventions: `%` suffix for names matching /pct|percent|rate/ plus `RATE_COLS` (derived conversion rates named without "rate"), `$` prefix for /amount|revenue/ (never /sale/)
 - Metric dropdown and popup share one classifier (`classifyCol`); keep both grouped identically
-- CityList and ZipOrFSA are excluded from popups; CityList values can be enormous and dirty (clamp behind a toggle); `HIDDEN_DISPLAY` (currently NoCount) is parsed but kept out of dropdown and popups
+- CityList and ZipOrFSA are excluded from popups; CityList values can be enormous and dirty (clamp behind a toggle); `HIDDEN_DISPLAY` (currently NoCount, AvgRevenuePer100Homes) is parsed but kept out of dropdown and popups; `HIDDEN_DROPDOWN` (currently AreaKm2) stays in popups but not the metric dropdown
 - Derived metrics live in two places: CSV-derived (per-lead, per-contact, RevenuePer100Knocks) in `loadRows`, geometry-derived (AreaKm2, HomesPerKm2, HomesPerSqMile, per-km² outcomes) in `deriveDensity` which reruns when `boundaries.js` finishes lazy-loading
 
 ## Verification
