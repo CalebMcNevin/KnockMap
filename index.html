@@ -261,6 +261,7 @@ L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_L
 map.setView([43.5, -80.5], 5); // default: somewhere between most markets
 
 let layer = null, rows = [], numericCols = [], metricCol = null;
+let csvHeaders = [], zipColName = ""; // kept module-level so boundaries arriving after loadRows can add columns
 let boundaryState = "none", fitPending = true; // none | loading | ready | failed
 
 // ponytail: boundaries.js (11MB) lazy-loaded via script tag after first CSV — works on file:// unlike fetch()
@@ -270,7 +271,7 @@ function ensureBoundaries() {
   $("summary").insertAdjacentHTML("beforeend", ' <span id="bndLoad">· loading zip boundaries…</span>'); // separator inside the span so removal cleans up
   const s = document.createElement("script");
   s.src = "boundaries.js";
-  s.onload = () => { boundaryState = "ready"; const b = $("bndLoad"); if (b) b.remove(); draw(); };
+  s.onload = () => { boundaryState = "ready"; const b = $("bndLoad"); if (b) b.remove(); if (deriveDensity()) refreshSelectors(); draw(); };
   s.onerror = () => {
     boundaryState = "failed"; const b = $("bndLoad"); if (b) b.remove();
     banner("Boundary file (boundaries.js) not found next to index.html: showing circles instead.");
@@ -309,6 +310,18 @@ function pct(sorted, p) {
   if (!sorted.length) return 0;
   return sorted[Math.min(sorted.length - 1, Math.floor(p * (sorted.length - 1)))];
 }
+// spherical polygon area (geojson-area formula); ring = [[lat,lng],...], polygon = [outer, holes...]
+function ringAreaM2(ring) {
+  const R = 6378137, rad = Math.PI / 180;
+  let a = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const p1 = ring[i], p2 = ring[(i + 1) % ring.length];
+    a += (p2[1] - p1[1]) * rad * (2 + Math.sin(p1[0] * rad) + Math.sin(p2[0] * rad));
+  }
+  return Math.abs(a * R * R / 2);
+}
+const polyAreaM2 = poly => Math.max(0,
+  ringAreaM2(poly[0]) - poly.slice(1).reduce((s, h) => s + ringAreaM2(h), 0));
 const STOPS = [[255,255,204],[168,221,136],[65,171,93],[0,104,55]]; // YlGn: green = highest
 function heat(t) { // t in [0,1] -> YlOrRd color string
   const x = Math.max(0, Math.min(1, t)) * (STOPS.length - 1);
@@ -331,7 +344,7 @@ function handleFile(file) {
 }
 
 // group metric columns into labeled sections; name-pattern based so unknown future columns still land somewhere
-const CENSUS_COLS = new Set(["CensusHomes", "PercentageOfCensusHomesKnocked", "AddressCoveragePct"]);
+const CENSUS_COLS = new Set(["CensusHomes", "PercentageOfCensusHomesKnocked", "AddressCoveragePct", "AreaKm2", "HomesPerKm2", "HomesPerSqMile"]);
 const GROUP_ORDER = ["Counts", "Per 100", "Rates", "Revenue", "Census", "Other"];
 const classifyCol = h =>
   CENSUS_COLS.has(h) ? "Census"
@@ -362,12 +375,50 @@ function parseSeason(fname) {
   return `${f(from)} to ${f(to)}`;
 }
 
+// dwelling density from boundary geometry (needs BOUNDARIES, which lazy-loads after the first CSV)
+function deriveDensity() {
+  if (typeof BOUNDARIES === "undefined" || !rows.length) return false;
+  let added = false;
+  for (const r of rows) {
+    if (r.vals.AreaKm2 != null) continue; // idempotent: second CSV rebuilds rows, boundary onload runs once
+    const polys = BOUNDARIES[r.code];
+    if (!polys) continue;
+    const km2 = polys.reduce((s, p) => s + polyAreaM2(p), 0) / 1e6;
+    if (!km2) continue;
+    r.raw.AreaKm2 = String(Math.round(km2 * 100) / 100); r.vals.AreaKm2 = Math.round(km2 * 100) / 100;
+    const homes = typeof CENSUS_HOMES !== "undefined" ? CENSUS_HOMES[r.code] : undefined;
+    if (homes) {
+      const pk = Math.round(homes / km2 * 10) / 10, pm = Math.round(homes * 2.58998811 / km2 * 10) / 10;
+      r.raw.HomesPerKm2 = String(pk); r.vals.HomesPerKm2 = pk;
+      r.raw.HomesPerSqMile = String(pm); r.vals.HomesPerSqMile = pm;
+    }
+    added = true;
+  }
+  if (added) csvHeaders.push("AreaKm2", ...(typeof CENSUS_HOMES !== "undefined" ? ["HomesPerKm2", "HomesPerSqMile"] : []));
+  return added;
+}
+function refreshSelectors() { // (re)build metric + filter dropdowns; applyControls restores choices from prefs
+  numericCols = csvHeaders.filter(h => {
+    let nums = 0, nonEmpty = 0;
+    for (const r of rows) {
+      const v = r.raw[h];
+      if (v != null && v !== "") { nonEmpty++; if (r.vals[h] != null) nums++; }
+    }
+    return nonEmpty > 0 && nums / nonEmpty > 0.5;
+  });
+  if (!numericCols.length) numericCols = csvHeaders.filter(h => h !== zipColName);
+  $("metric").innerHTML = optgroupHtml(numericCols);
+  $("filterCol").innerHTML = '<option value="">(none)</option>' + optgroupHtml(numericCols);
+  applyControls();
+}
+
 function loadRows(data, fname) {
   const col = i => Object.keys(i)[0];
   if (!data.length) return banner(`"${fname}" appears to be empty.`);
   const headers = Object.keys(data[0]);
   const zipCol = headers.find(h => h.toLowerCase().replace(/[\s_]/g, "") === "ziporfsa");
   if (!zipCol) return banner('Couldn\'t find a "ZipOrFSA" column: please upload the standard season report CSV.');
+  csvHeaders = headers; zipColName = zipCol;
 
   rows = []; const dupes = new Set();
   const season = parseSeason(fname), si = $("seasonInfo");
@@ -421,30 +472,15 @@ function loadRows(data, fname) {
     if (hasKnock) headers.push("PercentageOfCensusHomesKnocked");
     if (hasHomes) headers.push("AddressCoveragePct");
   }
+  deriveDensity(); // no-op when boundaries haven't loaded yet; onload re-runs it
 
-  // numeric columns: >50% of non-empty values parse as numbers
-  numericCols = headers.filter(h => {
-    let nums = 0, nonEmpty = 0;
-    for (const r of rows) {
-      const v = r.raw[h];
-      if (v != null && v !== "") { nonEmpty++; if (r.vals[h] != null) nums++; }
-    }
-    return nonEmpty > 0 && nums / nonEmpty > 0.5;
-  });
-  if (!numericCols.length) numericCols = headers.filter(h => h !== zipCol);
-
-  metricCol = null; // chosen in applyControls (saved user prefs or first-run defaults)
   fitPending = true; // new file: re-fit viewport once
-  const sel = $("metric");
-  sel.innerHTML = optgroupHtml(numericCols);
-  sel.classList.remove("hidden");
+  refreshSelectors();
+  $("metric").classList.remove("hidden");
   $("hideZeroWrap").classList.remove("hidden");
   $("scaleWrap").classList.remove("hidden");
   $("logWrap").classList.remove("hidden");
   $("filterWrap").classList.remove("hidden");
-  const fSel = $("filterCol");
-  fSel.innerHTML = '<option value="">(none)</option>' + optgroupHtml(numericCols);
-  applyControls();
   $("drop").classList.add("hidden");
 
   const bits = [`${data.length} rows`, `<span id="shownCount">${rows.length}</span> on map`];
