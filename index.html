@@ -4,60 +4,118 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Door-Knocking Report Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="centroids.js"></script>
+<script src="census_homes.js"></script>
 <style>
+  /* Weed Man style tokens (../STYLE_GUIDE.md) */
+  :root {
+    --wm-green-100: #DBDFCD; --wm-green-200: #AAC09B; --wm-green-300: #6CA169;
+    --wm-green-400: #348347; --wm-green-500: #00653A; --wm-green-600: #015A34;
+    --wm-green-700: #004E2C; --wm-green-800: #004226; --wm-green-900: #00361E;
+    --wm-orange-100: #FFF3D6; --wm-orange-300: #F4D583; --wm-orange-400: #F3C857;
+    --wm-orange-500: #F2BB2A; --wm-orange-600: #D7A523; --wm-orange-900: #80610F;
+    --wm-neutral-50: #F7F8F7; --wm-neutral-100: #E8ECEB; --wm-neutral-200: #D0D8D5;
+    --wm-neutral-300: #A8B8B2; --wm-neutral-400: #7A9189;
+    --wm-gray-700: #4B5563; --wm-error: #DC2626;
+    --bg: #F0F4F2; --card: #FFFFFF; --ink: #111827;
+    --radius: 8px; --radius-sm: 5px; --radius-pill: 20px;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.05);
+  }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; color: #1c2733; }
+  body { margin: 0; font: 15px/1.6 Inter, "DM Sans", ui-sans-serif, sans-serif; color: var(--ink); }
+  h1, h2, #drop .big { font-family: "DM Sans", Inter, ui-sans-serif, sans-serif; }
+
   header {
     display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center;
-    padding: 10px 16px; background: #fff; border-bottom: 1px solid #dfe5ea;
-    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    padding: 10px 20px; background: var(--card);
+    border-bottom: 3px solid var(--wm-orange-500); /* brand accent stripe */
+    box-shadow: var(--shadow-sm);
   }
-  header h1 { font-size: 16px; margin: 0; color: #24425c; }
+  header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; margin: 0; color: var(--wm-green-700); }
   header label { display: flex; align-items: center; gap: 6px; }
-  select, button {
-    font: inherit; padding: 5px 8px; border: 1px solid #c4cfd8;
-    border-radius: 6px; background: #fff;
+
+  select, button, input[type="number"] {
+    font: inherit; font-size: 15px; padding: 7px 13px;
+    border: 1px solid var(--wm-neutral-200); border-radius: var(--radius-sm);
+    background: var(--card); color: var(--ink); line-height: 1.25;
+    transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
   }
-  #summary { color: #5a6b7b; font-size: 13px; }
+  select:hover, button:hover, input[type="number"]:hover { border-color: var(--wm-neutral-300); }
+  select:focus-visible, button:focus-visible, input[type="number"]:focus-visible {
+    outline: 2px solid var(--wm-green-400); outline-offset: 0; border-color: var(--wm-green-400);
+  }
+  button {
+    color: var(--wm-green-700); cursor: pointer;
+    transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease;
+  }
+  button:hover { border-color: var(--wm-green-300); }
+  button:active { background: var(--wm-neutral-50); }
+  input[type="number"] { width: 76px; }
+  input[type="number"]::placeholder { color: var(--wm-neutral-300); }
+
+  #summary { color: var(--wm-gray-700); font-size: 13px; }
   #summary details { display: inline-block; }
-  #map { height: calc(100vh - 59px); width: 100vw; }
+  #summary a, #summary summary { color: var(--wm-green-600); }
+
+  #map { height: calc(100vh - 62px); width: 100vw; background: var(--bg); }
   .hidden { display: none !important; }
+
   #drop {
     position: fixed; inset: 0; z-index: 2000; display: flex;
     flex-direction: column; align-items: center; justify-content: center;
-    gap: 14px; background: rgba(36, 66, 92, .94); color: #fff; cursor: pointer;
+    gap: 14px; background: rgba(0, 54, 30, .96); color: #fff; cursor: pointer;
   }
-  #drop .big { font-size: 22px; font-weight: 600; }
-  #drop .sub { opacity: .8; max-width: 460px; text-align: center; }
-  #drop.hover { background: rgba(60, 145, 202, .95); }
+  #drop .big { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; }
+  #drop .sub { color: rgba(255,255,255,.75); font-size: 15px; max-width: 460px; text-align: center; }
+  #drop.hover { background: rgba(0, 101, 58, .97); }
   #drop .btn {
-    padding: 10px 22px; border-radius: 8px; background: #4db2e8; color: #fff;
-    font-weight: 600; border: none;
+    font: 600 15px/1.25 Inter, ui-sans-serif, sans-serif; padding: 12px 24px;
+    border: none; border-radius: var(--radius-sm);
+    background: var(--wm-orange-500); color: var(--wm-green-900); /* primary CTA */
+    box-shadow: var(--shadow-md);
+    transition: background-color .15s ease, box-shadow .15s ease;
   }
-  #uploadAgain { cursor: pointer; }
-  #banner {
-    padding: 8px 16px; background: #fdecea; color: #b3261e;
-    border-bottom: 1px solid #f5c6c2;
+  #drop .btn:hover { background: var(--wm-orange-400); }
+  #drop .btn:active { background: var(--wm-orange-600); }
+  #uploadAgain { cursor: pointer; color: var(--wm-green-700); }
+  #uploadAgain:hover { color: var(--wm-green-500); }
+
+  #banner { /* error variant */
+    padding: 8px 20px; background: #FFF5F5; color: var(--wm-error);
+    border-bottom: 1px solid #FECACA; font-size: 15px;
   }
+
   #legend {
     position: absolute; bottom: 24px; right: 12px; z-index: 1000;
-    background: rgba(255,255,255,.92); padding: 10px 12px; border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,.25); font-size: 12px; max-width: 280px;
+    background: var(--card); padding: 14px 18px;
+    border: 1px solid var(--wm-neutral-200); border-radius: var(--radius-pill);
+    box-shadow: var(--shadow-md); font-size: 15px; max-width: 340px;
   }
+  #legend b { font-family: "DM Sans", Inter, ui-sans-serif, sans-serif; font-size: 15px; font-weight: 600; color: var(--wm-green-700); }
   #legend .bar {
-    height: 10px; border-radius: 3px; margin: 6px 0 3px;
+    height: 16px; border-radius: 4px; margin: 10px 0 6px;
     background: linear-gradient(90deg, #ffffcc, #addd8e, #41ab5d, #006837);
   }
-  #legend .ticks { display: flex; justify-content: space-between; color: #5a6b7b; }
-  #legend .none { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: #5a6b7b; }
-  #legend .none i { width: 10px; height: 10px; border-radius: 50%; background: #9aa7b1; display: inline-block; }
+  #legend .ticks { display: flex; justify-content: space-between; color: var(--wm-gray-700); font-size: 13px; font-variant-numeric: tabular-nums; gap: 12px; }
+  #legend .none { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: var(--wm-gray-700); font-size: 13px; }
+  #legend .none i { width: 10px; height: 10px; border-radius: 50%; background: var(--wm-neutral-400); display: inline-block; }
+
   .leaflet-popup table { border-collapse: collapse; }
   .leaflet-popup td { padding: 2px 10px 2px 0; white-space: nowrap; }
-  .leaflet-popup td:first-child { color: #5a6b7b; }
+  .leaflet-popup td:first-child { color: var(--wm-gray-700); font-size: 13px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
 </style>
 </head>
 <body>
@@ -66,7 +124,25 @@
   <h1>Door-Knocking Report Map</h1>
   <label id="uploadAgain">↻ New CSV <input type="file" id="file" accept=".csv,text/csv" class="hidden"></label>
   <label>Color/size by <select id="metric" class="hidden"></select></label>
+  <label id="scaleWrap" class="hidden">Scale
+    <select id="scaleMode" title="Color ramp range. auto = 20th-80th percentile of the data (one outlier can't wash out the map)">
+      <option value="auto">auto</option>
+      <option value="full">min–max</option>
+      <option value="custom">custom</option>
+    </select>
+  </label>
+  <label id="logWrap" class="hidden" title="Logarithmic color scale — auto turns it on when the filtered data is right-skewed (bulk squashed at the bottom of the ramp)">Log
+    <select id="logMode"><option value="auto">auto</option><option value="on">on</option><option value="off">off</option></select>
+  </label>
+  <label id="filterWrap" class="hidden">Filter <select id="filterCol"></select> ≥
+    <input type="number" id="filterIn" step="any" placeholder="any" style="width:70px" title="Hide rows below this threshold (junk / low-significance data) — also excluded from the color scale">
+  </label>
+  <span id="customRange" class="hidden">
+    <input type="number" id="minIn" placeholder="min" step="any"> –
+    <input type="number" id="maxIn" placeholder="max" step="any">
+  </span>
   <label class="hidden" id="hideZeroWrap"><input type="checkbox" id="hideZero"> Hide zeros</label>
+  <button id="fitBtn" class="hidden" title="Zoom to all loaded data">Fit</button>
   <span id="summary"></span>
 </header>
 <div id="banner" class="hidden"></div>
@@ -88,15 +164,17 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const map = L.map("map", { zoomControl: true, preferCanvas: true });
-// ponytail: CARTO Positron instead of OSM tiles — OSM blocks requests with no Referer (file:// pages)
-L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-  maxZoom: 18, subdomains: "abcd",
-  attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+// Esri light gray canvas: free, no API key, no Referer requirement (CARTO now demands keys, OSM blocks file://)
+L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
+  maxZoom: 16, attribution: "Tiles &copy; Esri"
+}).addTo(map);
+L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}", {
+  maxZoom: 16
 }).addTo(map);
 map.setView([43.5, -80.5], 5); // default: somewhere between most markets
 
 let layer = null, rows = [], numericCols = [], metricCol = null;
-let boundaryState = "none"; // none | loading | ready | failed
+let boundaryState = "none", fitPending = true, lastBounds = null; // none | loading | ready | failed
 
 // ponytail: boundaries.js (11MB) lazy-loaded via script tag after first CSV — works on file:// unlike fetch()
 function ensureBoundaries() {
@@ -132,6 +210,13 @@ function fmt(n) {
     ? Math.round(n).toLocaleString()
     : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
+const isPctCol = c => /pct|percent|rate/i.test(c);
+const fmtM = (c, v) => fmt(v) + (isPctCol(c) ? "%" : "");
+const fmtTick = (c, v) => { // legend: compact — 1 decimal max, integers for big values
+  if (v == null) return "–";
+  const r = Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
+  return r.toLocaleString() + (isPctCol(c) ? "%" : "");
+};
 function pct(sorted, p) {
   if (!sorted.length) return 0;
   return sorted[Math.min(sorted.length - 1, Math.floor(p * (sorted.length - 1)))];
@@ -157,6 +242,27 @@ function handleFile(file) {
   });
 }
 
+// group metric columns into labeled sections; name-pattern based so unknown future columns still land somewhere
+const CENSUS_COLS = new Set(["CensusHomes", "PercentageOfCensusHomesKnocked", "AddressCoveragePct"]);
+function optgroupHtml(cols, selected) {
+  const groups = {};
+  for (const h of cols) {
+    const g = CENSUS_COLS.has(h) ? "Census"
+      : /per100/i.test(h) ? "Per 100"
+      : /rate|percent|pct/i.test(h) ? "Rates"
+      : /revenue|amount|sale/i.test(h) ? "Revenue"
+      : /count|homes/i.test(h) ? "Counts"
+      : "Other";
+    (groups[g] = groups[g] || []).push(h);
+  }
+  return ["Counts", "Per 100", "Rates", "Revenue", "Census", "Other"]
+    .filter(g => groups[g])
+    .map(g => `<optgroup label="${g}">` +
+      groups[g].map(h => `<option ${h === selected ? "selected" : ""}>${esc(h)}</option>`).join("") +
+      `</optgroup>`)
+    .join("");
+}
+
 function loadRows(data, fname) {
   const col = i => Object.keys(i)[0];
   if (!data.length) return banner(`"${fname}" appears to be empty.`);
@@ -176,6 +282,31 @@ function loadRows(data, fname) {
     rows.push(rec);
   }
 
+  // official census denominator + derived coverage metrics
+  const hasKnock = headers.includes("KnockCount"), hasHomes = headers.includes("HomeCount");
+  let censusHits = 0;
+  for (const rec of rows) {
+    const homes = typeof CENSUS_HOMES !== "undefined" ? CENSUS_HOMES[rec.code] : undefined;
+    if (!homes) continue;
+    censusHits++;
+    rec.raw.CensusHomes = String(homes); rec.vals.CensusHomes = homes;
+    const kc = rec.vals.KnockCount;
+    if (hasKnock && kc != null) {
+      const p = Math.round(kc / homes * 10000) / 100;
+      rec.raw.PercentageOfCensusHomesKnocked = String(p); rec.vals.PercentageOfCensusHomesKnocked = p;
+    }
+    const hc = rec.vals.HomeCount;
+    if (hasHomes && hc != null) {
+      const cov = Math.round(hc / homes * 10000) / 100;
+      rec.raw.AddressCoveragePct = String(cov); rec.vals.AddressCoveragePct = cov;
+    }
+  }
+  if (censusHits) {
+    headers.push("CensusHomes");
+    if (hasKnock) headers.push("PercentageOfCensusHomesKnocked");
+    if (hasHomes) headers.push("AddressCoveragePct");
+  }
+
   // numeric columns: >50% of non-empty values parse as numbers
   numericCols = headers.filter(h => {
     let nums = 0, nonEmpty = 0;
@@ -188,17 +319,25 @@ function loadRows(data, fname) {
   if (!numericCols.length) numericCols = headers.filter(h => h !== zipCol);
 
   metricCol = numericCols.includes("OrderCount") ? "OrderCount" : numericCols[0];
+  fitPending = true; // new file: re-fit viewport once
   const sel = $("metric");
-  sel.innerHTML = numericCols.map(h => `<option ${h === metricCol ? "selected" : ""}>${esc(h)}</option>`).join("");
+  sel.innerHTML = optgroupHtml(numericCols, metricCol);
   sel.classList.remove("hidden");
   $("hideZeroWrap").classList.remove("hidden");
+  $("scaleWrap").classList.remove("hidden");
+  $("logWrap").classList.remove("hidden");
+  $("filterWrap").classList.remove("hidden");
+  $("fitBtn").classList.remove("hidden");
+  const fSel = $("filterCol");
+  fSel.innerHTML = '<option value="">(none)</option>' + optgroupHtml(numericCols);
+  fSel.value = "KnockCount";
   $("drop").classList.add("hidden");
 
-  const bits = [`${data.length} rows`, `${rows.length} on map`];
+  const bits = [`${data.length} rows`, `<span id="shownCount">${rows.length}</span> on map`];
   if (unmatched.length || dupes.size) {
-    bits.push(`<details><summary style="cursor:pointer;color:#2470a8">${
+    bits.push(`<details><summary style="cursor:pointer;color:var(--wm-green-600)">${
       unmatched.length} not found${dupes.size ? ` · ${dupes.size} duplicates kept first` : ""}</summary>` +
-      `<div style="max-height:80px;overflow:auto">${unmatched.map(esc).join(", ") || "–"}</div></details>`);
+      `<div style="max-height:80px;overflow:auto;color:var(--wm-gray-700)">${unmatched.map(esc).join(", ") || "–"}</div></details>`);
   }
   $("summary").innerHTML = bits.join(" · ");
 
@@ -212,26 +351,54 @@ function draw() {
   layer = L.layerGroup().addTo(map);
 
   const hideZero = $("hideZero").checked;
-  const shown = rows.filter(r => !hideZero || r.vals[metricCol] !== 0);
+  const fCol = $("filterCol").value, fVal = parseFloat($("filterIn").value);
+  const passes = r =>
+    (!hideZero || r.vals[metricCol] !== 0) &&
+    (!fCol || !isFinite(fVal) || (r.vals[fCol] != null && r.vals[fCol] >= fVal));
+  const shown = rows.filter(passes);
   const sorted = shown.map(r => r.vals[metricCol]).filter(v => v != null).sort((a, b) => a - b);
-  const lo = pct(sorted, 0.2), hi = pct(sorted, 0.8), mid = pct(sorted, 0.5);
+  const mid = pct(sorted, 0.5);
+  let lo, hi;
+  const mode = $("scaleMode").value;
+  if (mode === "custom") {
+    const mn = parseFloat($("minIn").value), mx = parseFloat($("maxIn").value);
+    if (isFinite(mn) && isFinite(mx)) { lo = mn; hi = mx; }
+  }
+  if (lo === undefined) { // custom with empty boxes falls through to auto
+    if (mode === "full" && sorted.length) { lo = sorted[0]; hi = sorted[sorted.length - 1]; }
+    else {
+      lo = pct(sorted, 0.2); hi = pct(sorted, 0.8);
+      // skewed data (most values identical, e.g. tons of zeros) collapses the percentile
+      // ramp -- fall back to min-max so real differences still show
+      if (lo === hi && sorted.length) { lo = sorted[0]; hi = sorted[sorted.length - 1]; }
+    }
+  }
+  // log ramp for skewed metrics. auto: on when the median sits in the bottom
+  // quarter of the linear ramp (bulk squashed -> right-skewed). off when lo<0.
+  const midPos = hi > lo ? (mid - lo) / (hi - lo) : 1;
+  const logOn = hi > lo && lo >= 0 &&
+    ($("logMode").value === "on" || ($("logMode").value === "auto" && midPos < 0.25));
+  const norm = v => {
+    const x = Math.max(lo, Math.min(hi, v));
+    return logOn ? Math.log1p(x - lo) / Math.log1p(hi - lo) : (x - lo) / (hi - lo);
+  };
   const haveBounds = typeof BOUNDARIES !== "undefined";
   const bounds = L.latLngBounds();
 
   function tOf(r) {
     const v = r.vals[metricCol];
-    return v == null || hi === lo ? null : Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
+    return v == null || hi === lo ? null : Math.max(0, Math.min(1, norm(v)));
   }
 
   for (const r of shown) {
     const t = tOf(r);
-    const fill = t == null ? "#9aa7b1" : heat(t);
+    const fill = t == null ? "#7A9189" : heat(t); // no-value = wm-neutral-400
     const polys = haveBounds && BOUNDARIES[r.code];
     if (polys) {
       for (const ring of polys) {
-        const style = { color: "#5a6b7b", weight: 0.75, fillColor: fill, fillOpacity: 0.75 };
+        const style = { color: "#7A9189", weight: 0.75, fillColor: fill, fillOpacity: 0.55 }; // wm-neutral-400 stroke
         L.polygon(ring, style)
-          .bindTooltip(`${r.code} · ${esc(metricCol)}: ${fmt(r.vals[metricCol])}`)
+          .bindTooltip(`${r.code} · ${esc(metricCol)}: ${fmtM(metricCol, r.vals[metricCol])}`)
           .bindPopup(popupHtml(r))
           .on("mouseover", e => e.target.setStyle({ weight: 2.5 }))
           .on("mouseout", e => e.target.setStyle({ weight: 0.75 }))
@@ -241,36 +408,39 @@ function draw() {
     } else {
       L.circleMarker(CENTROIDS[r.code], {
         radius: 5 + 16 * (t == null ? 0.15 : Math.sqrt(t)),
-        color: fill, weight: 1, fillColor: fill, fillOpacity: 0.75
+        color: fill, weight: 1, fillColor: fill, fillOpacity: 0.55
       })
-        .bindTooltip(`${r.code} · ${esc(metricCol)}: ${fmt(r.vals[metricCol])}`)
+        .bindTooltip(`${r.code} · ${esc(metricCol)}: ${fmtM(metricCol, r.vals[metricCol])}`)
         .bindPopup(popupHtml(r))
         .addTo(layer);
       bounds.extend(CENTROIDS[r.code]);
     }
   }
 
-  $("legendTitle").textContent = metricCol;
-  $("tLow").textContent = fmt(lo); $("tMid").textContent = fmt(mid); $("tHigh").textContent = fmt(hi);
+  $("legendTitle").textContent = metricCol + (logOn ? " (log)" : "");
+  $("tLow").textContent = fmtTick(metricCol, lo); $("tMid").textContent = fmtTick(metricCol, mid); $("tHigh").textContent = fmtTick(metricCol, hi);
   $("legend").classList.remove("hidden");
 
-  if (bounds.isValid()) map.fitBounds(bounds.pad(0.15));
+  const sc = $("shownCount"); if (sc) sc.textContent = shown.length;
+  if (bounds.isValid()) lastBounds = bounds; // no auto-fit on option changes; only on new CSV (or Fit button)
+  if (fitPending && bounds.isValid()) { map.fitBounds(bounds.pad(0.15)); fitPending = false; }
 }
 
 const esc = s => String(s).replace(/[&<>"']/g, c =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-function cellVal(v) { // dirty data: clamp very long values (e.g. CityList) behind a toggle
+function cellVal(k, v) { // dirty data: clamp very long values (e.g. CityList) behind a toggle
   const s = String(v).trim();
+  const shown = isPctCol(k) && toNum(s) != null ? `${fmt(toNum(s))}%` : null;
   return s.length > 120
     ? `<details><summary>${esc(s.slice(0, 100))}… (${s.length.toLocaleString()} chars)</summary>` +
        `<div style="margin-top:4px;max-width:250px;white-space:pre-wrap">${esc(s)}</div></details>`
-    : `<b>${esc(s)}</b>`;
+    : `<b>${esc(shown != null ? shown : s)}</b>`;
 }
 function popupHtml(r) {
   const title = `<b style="font-size:15px">${r.code}</b>`;
   const rowsHtml = Object.entries(r.raw)
     .filter(([, v]) => v != null && v !== "")
-    .map(([k, v]) => `<tr><td>${esc(k)}</td><td>${cellVal(v)}</td></tr>`)
+    .map(([k, v]) => `<tr><td>${esc(k)}</td><td>${cellVal(k, v)}</td></tr>`)
     .join("");
   return `<div style="max-height:300px;overflow:auto">${title}<table>${rowsHtml}</table></div>`;
 }
@@ -280,6 +450,14 @@ $("drop").addEventListener("click", () => $("file").click());
 $("uploadAgain").addEventListener("click", () => $("file").click());
 $("file").addEventListener("change", e => { if (e.target.files[0]) handleFile(e.target.files[0]); e.target.value = ""; });
 $("metric").addEventListener("change", e => { metricCol = e.target.value; draw(); });
+$("scaleMode").addEventListener("change", e => {
+  $("customRange").classList.toggle("hidden", e.target.value !== "custom");
+  draw();
+});
+$("fitBtn").addEventListener("click", () => { if (lastBounds) map.fitBounds(lastBounds.pad(0.15)); });
+$("logMode").addEventListener("change", draw);
+["filterCol", "filterIn"].forEach(id => $(id).addEventListener("input", draw));
+["minIn", "maxIn"].forEach(id => $(id).addEventListener("input", draw));
 $("hideZero").addEventListener("change", draw);
 
 const drop = $("drop");
@@ -292,7 +470,7 @@ document.addEventListener("drop", e => {
   if (f) handleFile(f);
 });
 </script>
-<div style="position:fixed;bottom:0;left:0;z-index:1000;font-size:10px;color:#888;background:rgba(255,255,255,.7);padding:1px 6px">
+<div style="position:fixed;bottom:0;left:0;z-index:1000;font-size:11px;color:var(--wm-gray-700);background:rgba(255,255,255,.85);padding:2px 8px;border-radius:0 5px 0 0">
   Zip/FSA locations &copy; GeoNames (CC BY 4.0)
 </div>
 </body>
