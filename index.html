@@ -31,12 +31,16 @@
   body { margin: 0; font: 15px/1.6 Inter, "DM Sans", ui-sans-serif, sans-serif; color: var(--ink); }
   h1, h2, #drop .big { font-family: "DM Sans", Inter, ui-sans-serif, sans-serif; }
 
+  body { display: flex; flex-direction: column; height: 100vh; }
   header {
-    display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center;
+    display: flex; flex-direction: column; gap: 8px;
     padding: 10px 20px; background: var(--card);
     border-bottom: 3px solid var(--wm-orange-500); /* brand accent stripe */
     box-shadow: var(--shadow-sm);
   }
+  header .row1 { display: flex; align-items: center; gap: 10px; }
+  header .row1 .spacer { flex: 1; }
+  header .row2 { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
   header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; margin: 0; color: var(--wm-green-700); }
   header label { display: flex; align-items: center; gap: 6px; }
 
@@ -56,6 +60,10 @@
   }
   button:hover { border-color: var(--wm-green-300); }
   button:active { background: var(--wm-neutral-50); }
+  button#helpBtn.icon {
+    width: 26px; height: 26px; padding: 0; border-radius: 50%;
+    font-weight: 600; line-height: 1; flex: none;
+  }
   input[type="number"] { width: 76px; }
   input[type="number"]::placeholder { color: var(--wm-neutral-300); }
 
@@ -68,7 +76,7 @@
     font-size: 11px; font-weight: 600; line-height: 1.4;
   }
 
-  #map { height: calc(100vh - 62px); width: 100vw; background: var(--bg); }
+  #map { flex: 1; width: 100vw; min-height: 0; background: var(--bg); }
   .hidden { display: none !important; }
 
   #drop {
@@ -141,7 +149,7 @@
   dialog.dlg ol.steps li:first-child { margin-top: 0; }
   dialog.dlg ol.steps li ~ li { border-top: 1px solid var(--wm-neutral-100); padding-top: 14px; }
   dialog.dlg ol.steps img {
-    display: block; max-width: 440px; width: 100%; margin-top: 6px;
+    display: block; max-width: 440px; width: auto; margin: 6px auto 0;
     border: 1px solid var(--wm-neutral-200); border-radius: var(--radius-sm);
     box-shadow: var(--shadow-sm);
   }
@@ -160,9 +168,14 @@
 <body>
 
 <header>
-  <h1>Door-Knocking Report Map</h1>
-  <span id="seasonInfo" class="hidden"></span>
-  <label id="uploadAgain">↻ New CSV <input type="file" id="file" accept=".csv,text/csv" class="hidden"></label>
+  <div class="row1">
+    <h1>Door-Knocking Report Map</h1>
+    <span id="seasonInfo" class="hidden"></span>
+    <span class="spacer"></span>
+    <label id="uploadAgain">↻ New CSV <input type="file" id="file" accept=".csv,text/csv" class="hidden"></label>
+    <button id="helpBtn" class="icon" title="How to export the report CSV from WEMMS">?</button>
+  </div>
+  <div class="row2">
   <label>Color/size by <select id="metric" class="hidden"></select></label>
   <label id="scaleWrap" class="hidden">Scale
     <select id="scaleMode" title="Color ramp range. auto = 20th-80th percentile of the data (one outlier can't wash out the map)">
@@ -182,10 +195,9 @@
     <input type="number" id="maxIn" placeholder="max" step="any">
   </span>
   <label class="hidden" id="hideZeroWrap"><input type="checkbox" id="hideZero"> Hide zeros</label>
-  <button id="fitBtn" class="hidden" title="Zoom to all loaded data">Fit</button>
   <button id="sourcesBtn" title="Boundary, housing-count and basemap sources & dates">Data sources</button>
-  <button id="helpBtn" title="How to export the report CSV from WEMMS">Help</button>
   <span id="summary"></span>
+  </div>
 </header>
 <dialog id="sourcesDialog" class="dlg">
   <h2>Data sources & dates</h2>
@@ -205,12 +217,15 @@
 <dialog id="helpDialog" class="dlg">
   <h2>How to get your report CSV</h2>
   <ol class="steps">
-    <li>In WEMMS, open the <b>Door Knocking</b> module.</li>
-    <img src="door-knocking.png" alt="WEMMS modules menu with Door Knocking selected">
-    <li>Go to <b>Reports</b>, then <b>DK Summary By Zip/FSA</b>.</li>
-    <img src="zip-fsa-report.png" alt="Reports menu with DK Summary By Zip/FSA selected">
-    <li>Choose whatever settings you like, then click <b>Export</b> to save the CSV file.</li>
-    <img src="report-settings.png" alt="Report settings screen with Export button">
+    <li>In WEMMS, open the <b>Door Knocking</b> module.
+      <img src="door-knocking.png" alt="WEMMS modules menu with Door Knocking selected" style="max-height: 280px; width: auto;">
+    </li>
+    <li>Go to <b>Reports</b>, then <b>DK Summary By Zip/FSA</b>.
+      <img src="zip-fsa-report.png" alt="Reports menu with DK Summary By Zip/FSA selected">
+    </li>
+    <li>Choose whatever settings you like, then click <b>Export</b> to save the CSV file.
+      <img src="report-settings.png" alt="Report settings screen with Export button">
+    </li>
     <li>Come back here and drop that CSV file on the page (or click to browse).</li>
   </ol>
   <button id="helpClose">Close</button>
@@ -245,7 +260,7 @@ L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_L
 map.setView([43.5, -80.5], 5); // default: somewhere between most markets
 
 let layer = null, rows = [], numericCols = [], metricCol = null;
-let boundaryState = "none", fitPending = true, lastBounds = null; // none | loading | ready | failed
+let boundaryState = "none", fitPending = true; // none | loading | ready | failed
 
 // ponytail: boundaries.js (11MB) lazy-loaded via script tag after first CSV — works on file:// unlike fetch()
 function ensureBoundaries() {
@@ -411,7 +426,6 @@ function loadRows(data, fname) {
   $("scaleWrap").classList.remove("hidden");
   $("logWrap").classList.remove("hidden");
   $("filterWrap").classList.remove("hidden");
-  $("fitBtn").classList.remove("hidden");
   const fSel = $("filterCol");
   fSel.innerHTML = '<option value="">(none)</option>' + optgroupHtml(numericCols);
   applyControls();
@@ -535,8 +549,7 @@ function draw() {
 
   const sc = $("shownCount"); if (sc) sc.textContent = shown.length;
   savePrefs();
-  if (bounds.isValid()) lastBounds = bounds; // no auto-fit on option changes; only on new CSV (or Fit button)
-  if (fitPending && bounds.isValid()) { map.fitBounds(bounds.pad(0.15)); fitPending = false; }
+  if (fitPending && bounds.isValid()) { map.fitBounds(bounds.pad(0.15)); fitPending = false; } // auto-fit once per CSV
 }
 
 const esc = s => String(s).replace(/[&<>"']/g, c =>
@@ -573,7 +586,6 @@ $("scaleMode").addEventListener("change", e => {
   $("customRange").classList.toggle("hidden", e.target.value !== "custom");
   draw();
 });
-$("fitBtn").addEventListener("click", () => { if (lastBounds) map.fitBounds(lastBounds.pad(0.15)); });
 $("sourcesBtn").addEventListener("click", () => $("sourcesDialog").showModal());
 $("sourcesClose").addEventListener("click", () => $("sourcesDialog").close());
 $("helpBtn").addEventListener("click", () => $("helpDialog").showModal());
