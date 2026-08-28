@@ -128,17 +128,18 @@
     padding: 4px 10px 4px 0; border-top: 1px solid var(--wm-neutral-100);
   }
   .leaflet-popup tr:first-child.gh td { border-top: none; }
-
   dialog.dlg {
     border: 1px solid var(--wm-neutral-200); border-radius: var(--radius);
     box-shadow: var(--shadow-md); padding: 20px; max-width: 560px;
     font: 15px/1.6 Inter, ui-sans-serif, sans-serif; color: var(--ink);
+    overflow-anchor: none; /* images loading late must not re-pin scroll to the focused Close button */
   }
   dialog.dlg::backdrop { background: rgba(17, 24, 39, .45); }
   dialog.dlg h2 {
     font: 600 17px/1.15 "DM Sans", Inter, ui-sans-serif, sans-serif;
     color: var(--wm-green-700); margin: 0 0 12px;
   }
+  dialog.dlg h2:focus { outline: none; } /* non-interactive focus sink for dialog open */
   dialog#sourcesDialog table { border-collapse: collapse; }
   dialog#sourcesDialog td { padding: 4px 16px 4px 0; vertical-align: top; }
   dialog#sourcesDialog td:first-child { color: var(--wm-gray-700); font-size: 13px; white-space: nowrap; }
@@ -200,7 +201,7 @@
   </div>
 </header>
 <dialog id="sourcesDialog" class="dlg">
-  <h2>Data sources & dates</h2>
+  <h2 tabindex="-1" autofocus>Data sources & dates</h2>
   <table>
     <tr><td>US zip boundaries</td><td>US Census Bureau: 2020 ZCTA cartographic boundaries (public domain)</td></tr>
     <tr><td>Canada FSA boundaries</td><td>Statistics Canada: 2021 FSA boundaries (Open Government Licence, Canada)</td></tr>
@@ -214,8 +215,8 @@
     "CensusHomes" counts occupied private dwellings only; seasonal and vacant homes are excluded.</p>
   <button id="sourcesClose">Close</button>
 </dialog>
-<dialog id="helpDialog" class="dlg">
-  <h2>How to get your report CSV</h2>
+<dialog id="helpDialog" class="dlg" tabindex="-1">
+  <h2 tabindex="-1" autofocus>How to get your report CSV</h2>
   <ol class="steps">
     <li>In WEMMS, open the <b>Door Knocking</b> module.
       <img src="door-knocking.png" alt="WEMMS modules menu with Door Knocking selected" style="max-height: 280px; width: auto;">
@@ -588,8 +589,18 @@ $("scaleMode").addEventListener("change", e => {
 });
 $("sourcesBtn").addEventListener("click", () => $("sourcesDialog").showModal());
 $("sourcesClose").addEventListener("click", () => $("sourcesDialog").close());
-$("helpBtn").addEventListener("click", () => $("helpDialog").showModal());
+$("helpBtn").addEventListener("click", () => {
+  const d = $("helpDialog");
+  d.showModal();                 // autofocus lands on the h2 at the top (never Close at the bottom)
+  d.querySelector("h2").focus({ preventScroll: true });
+  requestAnimationFrame(() => { d.scrollTop = 0; });
+});
 $("helpClose").addEventListener("click", () => $("helpDialog").close());
+// click on the backdrop (the dialog element itself) closes -- same for both dialogs
+for (const d of ["helpDialog", "sourcesDialog"]) {
+  const el = $(d);
+  el.addEventListener("click", e => { if (e.target === el) el.close(); });
+}
 $("helpLink").addEventListener("click", e => { e.stopPropagation(); $("helpDialog").showModal(); });
 $("logMode").addEventListener("change", draw);
 ["filterCol", "filterIn"].forEach(id => $(id).addEventListener("input", draw));
