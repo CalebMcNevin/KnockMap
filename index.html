@@ -297,7 +297,7 @@ function fmt(n) {
     ? Math.round(n).toLocaleString()
     : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
-const isPctCol = c => /pct|percent|rate/i.test(c);
+const isPctCol = c => /pct|percent|rate/i.test(c) || c === "SalesPerLead"; // derived close rate, named without "rate" to match the report's wording
 const isMoneyCol = c => /amount|revenue/i.test(c); // NOT "sale" -- SalesPer100HomesKnocked isn't dollars
 const fmtM = (c, v) => (isMoneyCol(c) ? "$" : "") + fmt(v) + (isPctCol(c) ? "%" : "");
 const fmtTick = (c, v) => { // legend: compact — 1 decimal max, integers for big values
@@ -335,6 +335,7 @@ const CENSUS_COLS = new Set(["CensusHomes", "PercentageOfCensusHomesKnocked", "A
 const GROUP_ORDER = ["Counts", "Per 100", "Rates", "Revenue", "Census", "Other"];
 const classifyCol = h =>
   CENSUS_COLS.has(h) ? "Census"
+  : h === "SalesPerLead" ? "Rates"
   : /per100/i.test(h) ? "Per 100"
   : /rate|percent|pct/i.test(h) ? "Rates"
   : /revenue|amount|sale/i.test(h) ? "Revenue"
@@ -379,6 +380,21 @@ function loadRows(data, fname) {
     const existing = rows.find(x => x.code === code);
     if (existing) { dupes.add(code); continue; }   // ponytail: keep first row on duplicates, report count
     rows.push(rec);
+  }
+
+  // derived per-lead metrics (independent of census)
+  const hasOrders = headers.includes("OrderCount") || headers.includes("OrderAmount");
+  let perLeadHits = 0;
+  if (headers.includes("LeadCount")) for (const rec of rows) {
+    const lc = rec.vals.LeadCount;
+    if (!lc) continue;
+    const oc = rec.vals.OrderCount, oa = rec.vals.OrderAmount;
+    if (oc != null) { const v = Math.round(oc / lc * 10000) / 100; rec.raw.SalesPerLead = String(v); rec.vals.SalesPerLead = v; perLeadHits++; }
+    if (oa != null) { const v = Math.round(oa / lc * 100) / 100; rec.raw.RevenuePerLead = String(v); rec.vals.RevenuePerLead = v; }
+  }
+  if (perLeadHits) {
+    if (headers.includes("OrderCount")) headers.push("SalesPerLead");
+    if (headers.includes("OrderAmount")) headers.push("RevenuePerLead");
   }
 
   // official census denominator + derived coverage metrics
