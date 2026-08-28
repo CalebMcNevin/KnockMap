@@ -1,5 +1,6 @@
 # raw geo source downloads (re-fetch via commands in build_boundaries.py)
-data/
+data/*
+!data/AGENTS.md
 .ruff_cache/
 .env
 DoorKnockingMap.zip
