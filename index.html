@@ -121,13 +121,13 @@
   }
   .leaflet-popup tr:first-child.gh td { border-top: none; }
 
-  dialog#sourcesDialog {
+  dialog.dlg {
     border: 1px solid var(--wm-neutral-200); border-radius: var(--radius);
     box-shadow: var(--shadow-md); padding: 20px; max-width: 560px;
     font: 15px/1.6 Inter, ui-sans-serif, sans-serif; color: var(--ink);
   }
-  dialog#sourcesDialog::backdrop { background: rgba(17, 24, 39, .45); }
-  dialog#sourcesDialog h2 {
+  dialog.dlg::backdrop { background: rgba(17, 24, 39, .45); }
+  dialog.dlg h2 {
     font: 600 17px/1.15 "DM Sans", Inter, ui-sans-serif, sans-serif;
     color: var(--wm-green-700); margin: 0 0 12px;
   }
@@ -136,6 +136,18 @@
   dialog#sourcesDialog td:first-child { color: var(--wm-gray-700); font-size: 13px; white-space: nowrap; }
   dialog#sourcesDialog .fine { color: var(--wm-gray-700); font-size: 13px; margin: 14px 0 16px; }
   dialog#sourcesDialog #sourcesClose { color: var(--wm-green-700); }
+  dialog.dlg ol.steps { margin: 0 0 16px; padding-left: 22px; }
+  dialog.dlg ol.steps li { margin: 14px 0 6px; font-weight: 600; color: var(--wm-green-700); }
+  dialog.dlg ol.steps li:first-child { margin-top: 0; }
+  dialog.dlg ol.steps li ~ li { border-top: 1px solid var(--wm-neutral-100); padding-top: 14px; }
+  dialog.dlg ol.steps img {
+    display: block; max-width: 440px; width: 100%; margin-top: 6px;
+    border: 1px solid var(--wm-neutral-200); border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-sm);
+  }
+  dialog.dlg #helpClose { color: var(--wm-green-700); }
+  #drop a#helpLink { color: #fff; text-decoration: underline; cursor: pointer; font-size: 15px; opacity: .85; }
+  #drop a#helpLink:hover { opacity: 1; }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -172,9 +184,10 @@
   <label class="hidden" id="hideZeroWrap"><input type="checkbox" id="hideZero"> Hide zeros</label>
   <button id="fitBtn" class="hidden" title="Zoom to all loaded data">Fit</button>
   <button id="sourcesBtn" title="Boundary, housing-count and basemap sources & dates">Data sources</button>
+  <button id="helpBtn" title="How to export the report CSV from WEMMS">Help</button>
   <span id="summary"></span>
 </header>
-<dialog id="sourcesDialog">
+<dialog id="sourcesDialog" class="dlg">
   <h2>Data sources & dates</h2>
   <table>
     <tr><td>US zip boundaries</td><td>US Census Bureau: 2020 ZCTA cartographic boundaries (public domain)</td></tr>
@@ -189,6 +202,19 @@
     "CensusHomes" counts occupied private dwellings only; seasonal and vacant homes are excluded.</p>
   <button id="sourcesClose">Close</button>
 </dialog>
+<dialog id="helpDialog" class="dlg">
+  <h2>How to get your report CSV</h2>
+  <ol class="steps">
+    <li>In WEMMS, open the <b>Door Knocking</b> module.</li>
+    <img src="door-knocking.png" alt="WEMMS modules menu with Door Knocking selected">
+    <li>Go to <b>Reports</b>, then <b>DK Summary By Zip/FSA</b>.</li>
+    <img src="zip-fsa-report.png" alt="Reports menu with DK Summary By Zip/FSA selected">
+    <li>Choose whatever settings you like, then click <b>Export</b> to save the CSV file.</li>
+    <img src="report-settings.png" alt="Report settings screen with Export button">
+    <li>Come back here and drop that CSV file on the page (or click to browse).</li>
+  </ol>
+  <button id="helpClose">Close</button>
+</dialog>
 <div id="banner" class="hidden"></div>
 <div id="map"></div>
 <div id="legend" class="hidden">
@@ -202,6 +228,7 @@
   <div class="sub">or click to browse for the file. Nothing is uploaded anywhere:
     the report is read right in your browser and plotted by Zip (US) / FSA (Canada).</div>
   <div class="btn">Choose CSV file</div>
+  <a id="helpLink">How do I export the report from WEMMS?</a>
 </div>
 
 <script>
@@ -549,6 +576,9 @@ $("scaleMode").addEventListener("change", e => {
 $("fitBtn").addEventListener("click", () => { if (lastBounds) map.fitBounds(lastBounds.pad(0.15)); });
 $("sourcesBtn").addEventListener("click", () => $("sourcesDialog").showModal());
 $("sourcesClose").addEventListener("click", () => $("sourcesDialog").close());
+$("helpBtn").addEventListener("click", () => $("helpDialog").showModal());
+$("helpClose").addEventListener("click", () => $("helpDialog").close());
+$("helpLink").addEventListener("click", e => { e.stopPropagation(); $("helpDialog").showModal(); });
 $("logMode").addEventListener("change", draw);
 ["filterCol", "filterIn"].forEach(id => $(id).addEventListener("input", draw));
 ["minIn", "maxIn"].forEach(id => $(id).addEventListener("input", draw));

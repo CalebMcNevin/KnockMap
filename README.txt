@@ -4,7 +4,11 @@ Door-Knocking Report Map
 How to use:
 1. Keep these files together in one folder.
 2. Double-click "index.html" (opens in your browser).
-3. Drop your season report CSV onto the page.
+3. Export your report from WEMMS: open the Door Knocking module,
+   then Reports -> DK Summary By Zip/FSA, choose your settings and
+   click Export to save the CSV. (The "Help" button in the app shows
+   screenshots of each step.)
+4. Drop that CSV onto the page.
 
 That's it. Nothing is uploaded anywhere -- the report is read
 directly in your browser and never leaves your computer.
