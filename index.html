@@ -128,6 +128,10 @@
     padding: 4px 10px 4px 0; border-top: 1px solid var(--wm-neutral-100);
   }
   .leaflet-popup tr:first-child.gh td { border-top: none; }
+  .pin { opacity: 0; cursor: pointer; font-size: 10px; margin-left: 4px; }
+  tr:hover .pin { opacity: 1; }
+  .pin.on { opacity: 1; } /* pinned stays visible without hover */
+  .pin:not(.on) { filter: grayscale(1); } /* hover offers a gray pin; pinned is red */
   dialog.dlg {
     border: 1px solid var(--wm-neutral-200); border-radius: var(--radius);
     box-shadow: var(--shadow-md); padding: 20px; max-width: 560px;
@@ -378,6 +382,12 @@ const DISPLAY = { // display-only: internal names feed every derivation
 const dispName = h => DISPLAY[h] || h.replace(/([a-z])([A-Z\d])/g, "$1 $2"); // unknown future columns still get spaced
 const HIDDEN_DISPLAY = new Set(["NoCount", "AvgRevenuePer100Homes"]); // parsed for filters/math but kept out of dropdown and popups
 const HIDDEN_DROPDOWN = new Set(["AreaKm2", "AreaSqMile"]); // reference-only columns: popup yes, metric dropdown no
+let pinned = new Set(); // internal names pinned from popups; shows in a Pinned group at top of popup + metric dropdown
+function metricOptionsHtml() { // Pinned copies first, originals stay in their groups; select.value picks the topmost copy
+  const pins = [...pinned].filter(h => numericCols.includes(h) && !HIDDEN_DROPDOWN.has(h) && !HIDDEN_DISPLAY.has(h));
+  return (pins.length ? `<optgroup label="Pinned">` + pins.map(h => `<option value="${esc(h)}">${esc(dispName(h))}</option>`).join("") + `</optgroup>` : "") +
+    optgroupHtml(numericCols);
+}
 function optgroupHtml(cols, selected) {
   const groups = {};
   for (const h of cols) if (!HIDDEN_DISPLAY.has(h) && !HIDDEN_DROPDOWN.has(h)) (groups[classifyCol(h)] = groups[classifyCol(h)] || []).push(h);
@@ -430,6 +440,8 @@ function deriveDensity() {
   return added.size > 0;
 }
 function refreshSelectors() { // (re)build metric + filter dropdowns; applyControls restores choices from prefs
+  let p = null; try { p = JSON.parse(localStorage.getItem("dkm-prefs") || "null"); } catch (e) { /* file:// quirks */ }
+  pinned = new Set(p && Array.isArray(p.pins) ? p.pins : []); // pins live in prefs; must load before building the Pinned group
   numericCols = csvHeaders.filter(h => {
     let nums = 0, nonEmpty = 0;
     for (const r of rows) {
@@ -439,7 +451,7 @@ function refreshSelectors() { // (re)build metric + filter dropdowns; applyContr
     return nonEmpty > 0 && nums / nonEmpty > 0.5;
   });
   if (!numericCols.length) numericCols = csvHeaders.filter(h => h !== zipColName);
-  $("metric").innerHTML = optgroupHtml(numericCols);
+  $("metric").innerHTML = metricOptionsHtml();
   $("filterCol").innerHTML = '<option value="">(none)</option>' + optgroupHtml(numericCols);
   applyControls();
 }
@@ -571,7 +583,8 @@ function savePrefs() {
   try {
     localStorage.setItem("dkm-prefs", JSON.stringify({
       metric: metricCol, scale: $("scaleMode").value, log: $("logMode").value,
-      fCol: $("filterCol").value, fVal: $("filterIn").value, hideZero: $("hideZero").checked
+      fCol: $("filterCol").value, fVal: $("filterIn").value, hideZero: $("hideZero").checked,
+      pins: [...pinned]
     }));
   } catch (e) { /* storage unavailable: defaults only */ }
 }
@@ -634,15 +647,17 @@ function draw() {
         .on("mouseover", e => e.target.setStyle({ weight: 2.5, fillOpacity: 0.85 })) // area highlight, not just edge: complicated shapes need the fill to pop
         .on("mouseout", e => e.target.setStyle({ weight: 0.75, fillOpacity: 0.55 }))
         .addTo(layer);
+      p.row = r; // popup re-render on pin toggle needs the row back
       bounds.extend(p.getBounds());
     } else if (CENTROIDS[r.code]) {
-      L.circleMarker(CENTROIDS[r.code], {
+      const cm = L.circleMarker(CENTROIDS[r.code], {
         radius: 5 + 16 * (t == null ? 0.15 : Math.sqrt(t)),
         color: fill, weight: 1, fillColor: fill, fillOpacity: 0.55
       })
         .bindTooltip(`${r.code} · ${esc(dispName(metricCol))}: ${fmtM(metricCol, r.vals[metricCol])}`)
         .bindPopup(popupHtml(r))
         .addTo(layer);
+      cm.row = r;
       bounds.extend(CENTROIDS[r.code]);
     }
   }
@@ -684,20 +699,25 @@ function cellVal(k, v) { // dirty data: clamp very long values (e.g. CityList) b
 }
 function popupHtml(r) {
   const title = `<b style="font-size:15px">${r.code}</b>`;
+  const pinBtn = k => `<span class="pin${pinned.has(k) ? " on" : ""}" data-m="${esc(k)}" title="${pinned.has(k) ? "Unpin" : "Pin"}">📌</span>`;
+  const rowHtml = ([k, v]) => `<tr><td>${esc(dispName(k))}${pinBtn(k)}</td><td>${cellVal(k, v)}</td></tr>`;
   const groups = {};
   for (const [k, v] of Object.entries(r.raw)) {
-    if (v == null || v === "" || k.toLowerCase() === "citylist" || k.toLowerCase() === "ziporfsa" || HIDDEN_DISPLAY.has(k)) continue; // title already shows the code; citylist is dirty
+    if (v == null || v === "" || k.toLowerCase() === "citylist" || k.toLowerCase() === "ziporfsa" || HIDDEN_DISPLAY.has(k) || pinned.has(k)) continue; // title shows the code; citylist is dirty; pinned rows live in the top section only
     (groups[classifyCol(k)] = groups[classifyCol(k)] || []).push([k, v]);
   }
+  const pins = [...pinned].filter(k => k in r.raw && r.raw[k] != null && r.raw[k] !== "" && !HIDDEN_DISPLAY.has(k))
+    .map(k => [k, r.raw[k]]);
+  const pinnedSection = pins.length ? `<tr class="gh"><td colspan="2">Pinned</td></tr>` + pins.map(rowHtml).join("") : "";
   const sections = GROUP_ORDER.filter(g => groups[g]).map(g => {
     if (g === "Counts") { // CensusHomes reads best right after Homes (mirrors the dropdown order)
       const ci = groups.Counts.findIndex(p => p[0] === "CensusHomes"), hi = groups.Counts.findIndex(p => p[0] === "HomeCount");
       if (ci > hi && hi >= 0) groups.Counts.splice(hi + 1, 0, groups.Counts.splice(ci, 1)[0]);
     }
     return `<tr class="gh"><td colspan="2">${g}</td></tr>` +
-      groups[g].map(([k, v]) => `<tr><td>${esc(dispName(k))}</td><td>${cellVal(k, v)}</td></tr>`).join("");
+      groups[g].map(rowHtml).join("");
   }).join("");
-  return `<div style="max-height:320px;overflow:auto">${title}<table>${sections}</table></div>`;
+  return `<div class="pbody" style="max-height:320px;overflow:auto">${title}<table>${pinnedSection}${sections}</table></div>`;
 }
 
 // ---- wiring --------------------------------------------------------------
@@ -705,6 +725,29 @@ $("drop").addEventListener("click", () => $("file").click());
 $("uploadAgain").addEventListener("click", () => $("file").click());
 $("file").addEventListener("change", e => { if (e.target.files[0]) handleFile(e.target.files[0]); e.target.value = ""; });
 $("metric").addEventListener("change", e => { metricCol = e.target.value; draw(); });
+// pin toggling from popups (delegated: popup content is rebuilt as HTML strings)
+let openPopup = null;
+map.on("popupopen", e => { openPopup = e.popup; });
+map.on("popupclose", () => { openPopup = null; });
+document.addEventListener("click", e => {
+  const t = e.target.closest(".pin");
+  if (!t) return;
+  e.preventDefault();
+  togglePin(t.dataset.m);
+});
+function togglePin(m) {
+  pinned.has(m) ? pinned.delete(m) : pinned.add(m);
+  savePrefs();
+  $("metric").innerHTML = metricOptionsHtml();
+  $("metric").value = metricCol; // topmost copy wins: the Pinned one when pinned
+  if (openPopup && openPopup._source && openPopup._source.row) { // re-render open popup in place, keep scroll
+    const old = openPopup.getElement().querySelector(".pbody");
+    const st = old ? old.scrollTop : 0;
+    openPopup._source.setPopupContent(popupHtml(openPopup._source.row));
+    const nb = openPopup.getElement().querySelector(".pbody");
+    if (nb) nb.scrollTop = st;
+  }
+}
 $("scaleMode").addEventListener("change", e => {
   $("customRange").classList.toggle("hidden", e.target.value !== "custom");
   draw();
