@@ -346,10 +346,10 @@ function handleFile(file) {
 }
 
 // group metric columns into labeled sections; name-pattern based so unknown future columns still land somewhere
-const CENSUS_COLS = new Set(["CensusHomes", "PercentageOfCensusHomesKnocked", "AddressCoveragePct", "AreaKm2", "HomesPerKm2", "HomesPerSqMile"]);
-const GROUP_ORDER = ["Counts", "Per 100", "Per km²", "Rates", "Revenue", "Census", "Other"];
+const OTHER_COLS = new Set(["AreaKm2", "AreaSqMile", "HomesPerKm2", "HomesPerSqMile"]); // geometry-derived: forced into Other (HomesPerKm2 would otherwise land in Per km²)
+const GROUP_ORDER = ["Counts", "Per 100", "Per km²", "Rates", "Revenue", "Other"];
 const classifyCol = h =>
-  CENSUS_COLS.has(h) ? "Census"
+  OTHER_COLS.has(h) ? "Other"
   : RATE_COLS.has(h) ? "Rates"
   : /per100/i.test(h) ? "Per 100"
   : /perkm2/i.test(h) ? "Per km²"
@@ -357,14 +357,33 @@ const classifyCol = h =>
   : /revenue|amount|sale/i.test(h) ? "Revenue"
   : /count|homes/i.test(h) ? "Counts"
   : "Other";
+const DISPLAY = { // display-only: internal names feed every derivation
+  HomeCount: "Homes", KnockCount: "Knocks", ContactCount: "Contacts", LeadCount: "Leads",
+  QCCount: "QCs", BadCount: "Bad Leads", OrderCount: "Orders", CensusHomes: "Census Homes",
+  OrderAmount: "Order Amount", AvgRevenuePerSale: "Avg Revenue Per Sale",
+  ContactRate: "Contact Rate", YesRate: "Yes Rate", BadRate: "Bad Rate",
+  PercentageOfHomesKnocked: "Percentage of Homes Knocked",
+  ContactRateOfHomesAvailable: "Contact Rate of Homes Available",
+  LeadsPer100HomesKnocked: "Leads Per 100 Homes Knocked",
+  SalesPer100HomesKnocked: "Sales Per 100 Homes Knocked",
+  RevenuePer100Knocks: "Revenue Per 100 Homes Knocked", // knocks = homes knocked; matches the group wording
+  SalesPerLead: "Sales Per Lead", AvgRevenuePerLead: "Avg Revenue Per Lead",
+  LeadsPerContact: "Leads Per Contact", SalesPerContact: "Sales Per Contact",
+  ContactPerKm2: "Contacts Per km²", LeadPerKm2: "Leads Per km²",
+  OrderPerKm2: "Orders Per km²", RevenuePerKm2: "Revenue Per km²",
+  HomesPerKm2: "Homes Per km²", HomesPerSqMile: "Homes Per Square Mile",
+  AreaKm2: "Area (km²)", AreaSqMile: "Area (sq mi)", PercentageOfCensusHomesKnocked: "Percentage of Census Homes Knocked",
+  AddressCoveragePct: "Address Coverage %"
+};
+const dispName = h => DISPLAY[h] || h.replace(/([a-z])([A-Z\d])/g, "$1 $2"); // unknown future columns still get spaced
 const HIDDEN_DISPLAY = new Set(["NoCount", "AvgRevenuePer100Homes"]); // parsed for filters/math but kept out of dropdown and popups
-const HIDDEN_DROPDOWN = new Set(["AreaKm2"]); // reference-only columns: popup yes, metric dropdown no
+const HIDDEN_DROPDOWN = new Set(["AreaKm2", "AreaSqMile"]); // reference-only columns: popup yes, metric dropdown no
 function optgroupHtml(cols, selected) {
   const groups = {};
   for (const h of cols) if (!HIDDEN_DISPLAY.has(h) && !HIDDEN_DROPDOWN.has(h)) (groups[classifyCol(h)] = groups[classifyCol(h)] || []).push(h);
   return GROUP_ORDER.filter(g => groups[g])
     .map(g => `<optgroup label="${g}">` +
-      groups[g].map(h => `<option ${h === selected ? "selected" : ""}>${esc(h)}</option>`).join("") +
+      groups[g].map(h => `<option value="${esc(h)}"${h === selected ? " selected" : ""}>${esc(dispName(h))}</option>`).join("") +
       `</optgroup>`)
     .join("");
 }
@@ -391,7 +410,8 @@ function deriveDensity() {
     const km2 = polys.reduce((s, p) => s + polyAreaM2(p), 0) / 1e6;
     if (!km2) continue;
     r.raw.AreaKm2 = String(Math.round(km2 * 100) / 100); r.vals.AreaKm2 = Math.round(km2 * 100) / 100;
-    added.add("AreaKm2");
+    r.raw.AreaSqMile = String(Math.round(km2 / 2.58998811 * 100) / 100); r.vals.AreaSqMile = Math.round(km2 / 2.58998811 * 100) / 100;
+    added.add("AreaKm2"); added.add("AreaSqMile");
     const homes = typeof CENSUS_HOMES !== "undefined" ? CENSUS_HOMES[r.code] : undefined;
     if (homes) {
       const pk = Math.round(homes / km2 * 10) / 10, pm = Math.round(homes * 2.58998811 / km2 * 10) / 10;
@@ -506,6 +526,8 @@ function loadRows(data, fname) {
     headers.push("CensusHomes");
     if (hasKnock) headers.push("PercentageOfCensusHomesKnocked");
     if (hasHomes) headers.push("AddressCoveragePct");
+    const hi = headers.indexOf("HomeCount"); // CensusHomes reads best right after Homes
+    if (hi >= 0) headers.splice(hi + 1, 0, headers.splice(headers.indexOf("CensusHomes"), 1)[0]);
   }
   deriveDensity(); // no-op when boundaries haven't loaded yet; onload re-runs it
 
@@ -607,7 +629,7 @@ function draw() {
       // one multipolygon layer per code (poly = [outer, holes...]): all disjoint parts hover/highlight together
       const style = { color: "#7A9189", weight: 0.75, fillColor: fill, fillOpacity: 0.55 }; // wm-neutral-400 stroke
       const p = L.polygon(polys, style)
-        .bindTooltip(`${r.code} · ${esc(metricCol)}: ${fmtM(metricCol, r.vals[metricCol])}`, { sticky: true })
+        .bindTooltip(`${r.code} · ${esc(dispName(metricCol))}: ${fmtM(metricCol, r.vals[metricCol])}`, { sticky: true })
         .bindPopup(popupHtml(r))
         .on("mouseover", e => e.target.setStyle({ weight: 2.5, fillOpacity: 0.85 })) // area highlight, not just edge: complicated shapes need the fill to pop
         .on("mouseout", e => e.target.setStyle({ weight: 0.75, fillOpacity: 0.55 }))
@@ -618,14 +640,14 @@ function draw() {
         radius: 5 + 16 * (t == null ? 0.15 : Math.sqrt(t)),
         color: fill, weight: 1, fillColor: fill, fillOpacity: 0.55
       })
-        .bindTooltip(`${r.code} · ${esc(metricCol)}: ${fmtM(metricCol, r.vals[metricCol])}`)
+        .bindTooltip(`${r.code} · ${esc(dispName(metricCol))}: ${fmtM(metricCol, r.vals[metricCol])}`)
         .bindPopup(popupHtml(r))
         .addTo(layer);
       bounds.extend(CENTROIDS[r.code]);
     }
   }
 
-  $("legendTitle").textContent = metricCol + (logOn ? " (log)" : "");
+  $("legendTitle").textContent = dispName(metricCol) + (logOn ? " (log)" : "");
   $("tLow").textContent = fmtTick(metricCol, lo); $("tMid").textContent = fmtTick(metricCol, mid); $("tHigh").textContent = fmtTick(metricCol, hi);
   $("legend").classList.remove("hidden");
 
@@ -667,10 +689,14 @@ function popupHtml(r) {
     if (v == null || v === "" || k.toLowerCase() === "citylist" || k.toLowerCase() === "ziporfsa" || HIDDEN_DISPLAY.has(k)) continue; // title already shows the code; citylist is dirty
     (groups[classifyCol(k)] = groups[classifyCol(k)] || []).push([k, v]);
   }
-  const sections = GROUP_ORDER.filter(g => groups[g]).map(g =>
-    `<tr class="gh"><td colspan="2">${g}</td></tr>` +
-    groups[g].map(([k, v]) => `<tr><td>${esc(k)}</td><td>${cellVal(k, v)}</td></tr>`).join("")
-  ).join("");
+  const sections = GROUP_ORDER.filter(g => groups[g]).map(g => {
+    if (g === "Counts") { // CensusHomes reads best right after Homes (mirrors the dropdown order)
+      const ci = groups.Counts.findIndex(p => p[0] === "CensusHomes"), hi = groups.Counts.findIndex(p => p[0] === "HomeCount");
+      if (ci > hi && hi >= 0) groups.Counts.splice(hi + 1, 0, groups.Counts.splice(ci, 1)[0]);
+    }
+    return `<tr class="gh"><td colspan="2">${g}</td></tr>` +
+      groups[g].map(([k, v]) => `<tr><td>${esc(dispName(k))}</td><td>${cellVal(k, v)}</td></tr>`).join("");
+  }).join("");
   return `<div style="max-height:320px;overflow:auto">${title}<table>${sections}</table></div>`;
 }
 
