@@ -643,7 +643,7 @@ function draw() {
       const style = { color: "#7A9189", weight: 0.75, fillColor: fill, fillOpacity: 0.55 }; // wm-neutral-400 stroke
       const p = L.polygon(polys, style)
         .bindTooltip(`${r.code} · ${esc(dispName(metricCol))}: ${fmtM(metricCol, r.vals[metricCol])}`, { sticky: true })
-        .bindPopup(popupHtml(r))
+        .bindPopup(() => popupHtml(r)) // function, not string: rebuilt fresh on every open so pins apply globally
         .on("mouseover", e => e.target.setStyle({ weight: 2.5, fillOpacity: 0.85 })) // area highlight, not just edge: complicated shapes need the fill to pop
         .on("mouseout", e => e.target.setStyle({ weight: 0.75, fillOpacity: 0.55 }))
         .addTo(layer);
@@ -655,7 +655,7 @@ function draw() {
         color: fill, weight: 1, fillColor: fill, fillOpacity: 0.55
       })
         .bindTooltip(`${r.code} · ${esc(dispName(metricCol))}: ${fmtM(metricCol, r.vals[metricCol])}`)
-        .bindPopup(popupHtml(r))
+        .bindPopup(() => popupHtml(r))
         .addTo(layer);
       cm.row = r;
       bounds.extend(CENTROIDS[r.code]);
@@ -740,11 +740,13 @@ function togglePin(m) {
   savePrefs();
   $("metric").innerHTML = metricOptionsHtml();
   $("metric").value = metricCol; // topmost copy wins: the Pinned one when pinned
-  if (openPopup && openPopup._source && openPopup._source.row) { // re-render open popup in place, keep scroll
+  if (openPopup && openPopup._source) { // reopen so the bound popup function rebuilds fresh content (setPopupContent would freeze it back into a stale string)
+    const src = openPopup._source;
     const old = openPopup.getElement().querySelector(".pbody");
     const st = old ? old.scrollTop : 0;
-    openPopup._source.setPopupContent(popupHtml(openPopup._source.row));
-    const nb = openPopup.getElement().querySelector(".pbody");
+    map.closePopup();
+    src.openPopup();
+    const nb = openPopup && openPopup.getElement() ? openPopup.getElement().querySelector(".pbody") : null;
     if (nb) nb.scrollTop = st;
   }
 }
