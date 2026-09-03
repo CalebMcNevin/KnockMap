@@ -7,12 +7,13 @@
 
 - KnockMap: static single-page tool that maps Weed Man door-knocking season report CSVs by US zip / Canadian FSA onto a Leaflet map (choropleth boundaries, census housing denominators, per-metric color scales)
 - Permit tracking: records covering one or many zips/FSAs (comma/space separated codes list; one jurisdiction's rule shared by all its codes) stored in localStorage `dkm-permits` (separate from `dkm-prefs`), edited in the Permits dialog, shown as a categorical map overlay ("Permit status" toggle with D2D/flyers picker) and a popup Permits section; shared between computers via export/import JSON; zip/FSA is a proxy for the legal jurisdiction, the jurisdiction field carries the real authority
+- Customer penetration: optional customer list CSV (header needs SERVICEPOSTALZIP; CUSTOMERID dedupes customers per code) loaded via the header Customers button, either before or after the report; derives Customers (count) and Customer Penetration % (vs CensusHomes) per code; re-upload replaces counts
 - Stack: one `index.html` of vanilla JS (Leaflet 1.9 + PapaParse via CDN), no framework, no backend, no build step; works over HTTP or `file://`
 - UI must follow the Weed Man brand guide at `../STYLE_GUIDE.md` (tokens are CSS vars in `:root`; canvas colors hardcode the same hex values since canvas cannot use CSS vars)
 - Generated data files, never hand-edit, regenerate with the build scripts:
   - `centroids.js` from `python3 build_centroids.py` (GeoNames); GeoNames' free CA/US files lack some codes (e.g. L3L, R5J..R5T, S7A..S7C, T6Y, V7Z); rows for centroid-less codes draw via `BOUNDARIES` (circle fallback skipped), and draw-time "not found" counts only rows with neither boundary nor centroid
   - `boundaries.js` (zip/FSA polygons with holes; polygon = `[outer ring, hole rings...]` in `[lat,lng]`, ~11MB) from `python3 build_boundaries.py` (see its header for the full download + mapshaper pipeline). Holes are load-bearing: L4H wraps around Kleinburg (L0J), and Leaflet cuts holes from multi-ring polygons
-  - `census_homes.js` (occupied housing counts) from `python3 build_census_homes.py`
+  - `census_homes.js` (lawncare-eligible occupied dwellings: US ACS B25032 owner+renter detached/1-attached/2-unit/mobile; CA StatCan 2021 profile char 42-45,48,49; apartments excluded) from `python3 build_census_homes.py`
 - `build_census_homes.py` reads `US_CENSUS_API_KEY` from gitignored `.env`; never print, echo, or commit that key
 - Distribution zip `DoorKnockingMap.zip` is a build artifact, gitignored; rebuild with `zip -9 DoorKnockingMap.zip index.html centroids.js boundaries.js census_homes.js README.txt example.csv door-knocking.png zip-fsa-report.png report-settings.png` (name the three screenshots explicitly; `*.png` sweeps in debug screenshots)
 - Dev server: `python3 -m http.server 8901` from the repo root
