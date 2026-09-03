@@ -102,7 +102,13 @@
   #banner { /* error variant */
     padding: 8px 20px; background: #FFF5F5; color: var(--wm-error);
     border-bottom: 1px solid #FECACA; font-size: 15px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
   }
+  #banner .bx {
+    background: none; border: none; padding: 0 4px; font-size: 17px; line-height: 1;
+    color: var(--wm-error); cursor: pointer;
+  }
+  #banner .bx:hover { color: var(--wm-gray-700); }
 
   #legend {
     position: absolute; bottom: 24px; right: 12px; z-index: 1000;
@@ -405,10 +411,15 @@ function heat(t) { // t in [0,1] -> YlOrRd color string
   const c = STOPS[i].map((a, k) => Math.round(a + (STOPS[i + 1][k] - a) * f));
   return `rgb(${c[0]},${c[1]},${c[2]})`;
 }
+let bannerTimer = null;
 function banner(msg) {
-  $("banner").textContent = msg;
-  $("banner").classList.remove("hidden");
+  const b = $("banner");
+  b.innerHTML = `<span>${esc(msg)}</span><button class="bx" title="Dismiss">&times;</button>`;
+  b.classList.remove("hidden");
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => b.classList.add("hidden"), 10000); // auto-dismiss
 }
+$("banner").addEventListener("click", e => { if (e.target.closest(".bx")) { clearTimeout(bannerTimer); $("banner").classList.add("hidden"); } });
 
 // ---- CSV loading ---------------------------------------------------------
 function handleFile(file, input) {
