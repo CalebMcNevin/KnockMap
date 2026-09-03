@@ -411,10 +411,19 @@ function banner(msg) {
 }
 
 // ---- CSV loading ---------------------------------------------------------
-function handleFile(file) {
-  Papa.parse(file, {
+function handleFile(file, input) {
+  const done = () => { if (input) input.value = ""; }; // only after the read finishes: clearing mid-read aborts the file data
+  const rd = new FileReader();
+  rd.onload = () => { done(); parseReport(rd.result, file.name); };
+  rd.onerror = () => { done(); banner("Could not read that file. Is it a valid CSV?"); };
+  rd.readAsText(file);
+}
+function parseReport(text, name) { // parse + remember, so a reload restores the last report
+  try { localStorage.setItem("dkm-report", JSON.stringify({ name, text })); }
+  catch (e) { banner("Report loaded, but too large for this browser to remember."); }
+  Papa.parse(text, {
     header: true, skipEmptyLines: "greedy", transformHeaders: h => h.replace(/^\uFEFF/, "").trim(),
-    complete: res => loadRows(res.data, file.name),
+    complete: res => loadRows(res.data, name),
     error: () => banner("Could not read that file. Is it a valid CSV?")
   });
 }
@@ -711,11 +720,19 @@ function applyCustomerCols() {
 $("custFile").addEventListener("change", e => {
   const f = e.target.files[0];
   if (!f) { e.target.value = ""; return; }
-  const reset = () => { e.target.value = ""; }; // only after the read finishes: clearing mid-read aborts the file data
-  Papa.parse(f, {
+  const input = e.target;
+  const done = () => { input.value = ""; }; // only after the read finishes: clearing mid-read aborts the file data
+  const rd = new FileReader();
+  rd.onload = () => { done(); loadCustomersText(rd.result, f.name); };
+  rd.onerror = () => { done(); banner("Could not read that file. Is it a valid CSV?"); };
+  rd.readAsText(f);
+});
+function loadCustomersText(text, fname) { // parse + remember, so a reload restores the last customer list
+  try { localStorage.setItem("dkm-customers", JSON.stringify({ name: fname, text })); }
+  catch (e) { banner("Customer list loaded, but too large for this browser to remember."); }
+  Papa.parse(text, {
     header: true, skipEmptyLines: true,
     complete: res => {
-      reset();
       const headers = Object.keys(res.data[0] || {});
       const zipCol = headers.find(h => h.toLowerCase().replace(/[\s_]/g, "") === "servicepostalzip");
       if (!res.data.length || !zipCol) return banner('Couldn\'t find a "SERVICEPOSTALZIP" column in that file.');
@@ -734,9 +751,9 @@ $("custFile").addEventListener("change", e => {
       $("penWrap").classList.remove("hidden");
       banner(`Loaded ${total} customers across ${Object.keys(CUSTOMERS).length} zips/FSAs${applied ? "" : " (none match the current report)"}.`);
     },
-    error: () => { reset(); banner("Could not read that file. Is it a valid CSV?"); }
+    error: () => banner("Could not read that file. Is it a valid CSV?")
   });
-});
+}
 $("penDen").addEventListener("change", () => { // re-derive penetration against the new denominator
   if (CUSTOMERS && rows.length) { applyCustomerCols(); savePrefs(); refreshSelectors(); draw(); } // save first: applyControls (inside refreshSelectors) restores from prefs
 });
@@ -900,7 +917,7 @@ function popupHtml(r) {
 // ---- wiring --------------------------------------------------------------
 $("drop").addEventListener("click", () => $("file").click());
 $("uploadAgain").addEventListener("click", () => $("file").click());
-$("file").addEventListener("change", e => { if (e.target.files[0]) handleFile(e.target.files[0]); e.target.value = ""; });
+$("file").addEventListener("change", e => { if (e.target.files[0]) handleFile(e.target.files[0], e.target); });
 $("metric").addEventListener("change", e => { metricCol = e.target.value; draw(); });
 // pin toggling from popups (delegated: popup content is rebuilt as HTML strings)
 let openPopup = null;
@@ -1051,6 +1068,18 @@ document.addEventListener("drop", e => {
   const f = e.dataTransfer && e.dataTransfer.files[0];
   if (f) handleFile(f);
 });
+
+// restore the last uploaded report + customer list so a reload doesn't lose the session
+(function restoreUploads() {
+  const restored = [];
+  try {
+    const rep = JSON.parse(localStorage.getItem("dkm-report") || "null");
+    if (rep && rep.text) { parseReport(rep.text, rep.name); restored.push(`report "${rep.name}"`); }
+    const cus = JSON.parse(localStorage.getItem("dkm-customers") || "null");
+    if (cus && cus.text) { loadCustomersText(cus.text, cus.name); restored.push("customer list"); }
+  } catch (e) { /* corrupted stash: start fresh */ }
+  if (restored.length) banner(`Restored from this browser: ${restored.join(" and ")}. Upload new files any time.`);
+})();
 </script>
 <div style="position:fixed;bottom:0;left:0;z-index:1000;font-size:11px;color:var(--wm-gray-700);background:rgba(255,255,255,.85);padding:2px 8px;border-radius:0 5px 0 0">
   Zip/FSA locations &copy; GeoNames (CC BY 4.0)
