@@ -342,7 +342,7 @@ map.setView([43.5, -80.5], 5); // default: somewhere between most markets
 
 let layer = null, rows = [], numericCols = [], metricCol = null;
 let csvHeaders = [], zipColName = ""; // kept module-level so boundaries arriving after loadRows can add columns
-let boundaryState = "none", fitPending = true; // none | loading | ready | failed
+let boundaryState = "none", fitPending = true, restoreView = null; // none | loading | ready | failed; restoreView replaces the first auto-fit after a session restore
 
 // ponytail: boundaries.js (11MB) lazy-loaded via script tag after first CSV — works on file:// unlike fetch()
 function ensureBoundaries() {
@@ -707,7 +707,8 @@ function savePrefs() {
     localStorage.setItem("dkm-prefs", JSON.stringify({
       metric: metricCol, scale: $("scaleMode").value, log: $("logMode").value,
       fCol: $("filterCol").value, fVal: $("filterIn").value, hideZero: $("hideZero").checked,
-      pins: [...pinned], pOn: $("permitOn").checked, pAct: $("permitAct").value, pDen: $("penDen").value
+      pins: [...pinned], pOn: $("permitOn").checked, pAct: $("permitAct").value, pDen: $("penDen").value,
+      mv: [map.getCenter().lat, map.getCenter().lng, map.getZoom()] // map view follows along
     }));
   } catch (e) { /* storage unavailable: defaults only */ }
 }
@@ -871,7 +872,11 @@ function draw() {
 
   const sc = $("shownCount"); if (sc) sc.textContent = shown.length - nf.length;
   savePrefs();
-  if (fitPending && bounds.isValid()) { map.fitBounds(bounds.pad(0.15)); fitPending = false; } // auto-fit once per CSV
+  if (fitPending && bounds.isValid()) { // once per CSV: fit the data, or land on the restored session view
+    if (restoreView) { map.setView([restoreView[0], restoreView[1]], restoreView[2]); restoreView = null; }
+    else map.fitBounds(bounds.pad(0.15));
+    fitPending = false;
+  }
 }
 
 const esc = s => String(s).replace(/[&<>"']/g, c =>
@@ -1066,6 +1071,7 @@ for (const d of ["helpDialog", "sourcesDialog", "permitDialog"]) {
 }
 $("helpLink").addEventListener("click", e => { e.stopPropagation(); $("helpDialog").showModal(); });
 $("logMode").addEventListener("change", draw);
+map.on("moveend", () => savePrefs()); // pans and zooms both end in moveend: keep the saved view current
 ["filterCol", "filterIn"].forEach(id => $(id).addEventListener("input", draw));
 ["minIn", "maxIn"].forEach(id => $(id).addEventListener("input", draw));
 $("hideZero").addEventListener("change", draw);
@@ -1082,6 +1088,13 @@ document.addEventListener("drop", e => {
 
 // restore the last uploaded report + customer list so a reload doesn't lose the session
 (function restoreUploads() {
+  // saved map view (center + zoom) must be read FIRST: parseReport below parses synchronously
+  // into draw(), whose savePrefs would otherwise overwrite mv with the boot-default view
+  try {
+    const p = JSON.parse(localStorage.getItem("dkm-prefs") || "null");
+    if (p && Array.isArray(p.mv) && p.mv.length === 3 && isFinite(p.mv[0]) && isFinite(p.mv[1]) && isFinite(p.mv[2]))
+      restoreView = p.mv; // consumed by draw() in place of the auto-fit
+  } catch (e) { /* bad prefs: default view */ }
   const restored = [];
   try {
     const rep = JSON.parse(localStorage.getItem("dkm-report") || "null");
