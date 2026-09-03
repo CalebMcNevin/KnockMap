@@ -735,7 +735,7 @@ function draw() {
       const style = { color: "#7A9189", weight: 0.75, fillColor: fill, fillOpacity: 0.55 }; // wm-neutral-400 stroke
       const p = L.polygon(polys, style)
         .bindTooltip(tipTxt(r), { sticky: true })
-        .bindPopup(() => popupHtml(r)) // function, not string: rebuilt fresh on every open so pins apply globally
+        .bindPopup(() => popupHtml(r), { maxWidth: 420 }) // function, not string: rebuilt fresh on every open so pins apply globally
         .on("mouseover", e => e.target.setStyle({ weight: 2.5, fillOpacity: 0.85 })) // area highlight, not just edge: complicated shapes need the fill to pop
         .on("mouseout", e => e.target.setStyle({ weight: 0.75, fillOpacity: 0.55 }))
         .addTo(layer);
@@ -747,7 +747,7 @@ function draw() {
         color: fill, weight: 1, fillColor: fill, fillOpacity: 0.55
       })
         .bindTooltip(tipTxt(r))
-        .bindPopup(() => popupHtml(r))
+        .bindPopup(() => popupHtml(r), { maxWidth: 420 })
         .addTo(layer);
       cm.row = r;
       bounds.extend(CENTROIDS[r.code]);
@@ -815,9 +815,11 @@ function popupHtml(r) {
   }).join("");
   const pr = permitRec(r.code);
   const link = (u, txt) => u ? ` <a href="${esc(u)}" target="_blank" rel="noopener">${esc(txt || u.replace(/^https?:\/\//, "").slice(0, 40))}</a>` : "";
+  const got = (st, on, key) => ["permit", "conditional"].includes(st) // obtaining only applies when a permit is actually required
+    ? ` <input type="checkbox" class="got" title="Permit obtained"${on ? " checked" : ""} data-g="${key}">` : "";
   const permitSection = pr ? `<tr class="gh"><td colspan="2">Permits <button class="pedit" style="font-size:11px;padding:1px 8px">Edit</button></td></tr>` +
-    `<tr><td>D2D canvassing</td><td>${PERMIT_LABEL[pr.d2d] || "Unknown"} <input type="checkbox" class="got" data-g="d2d" title="Permit obtained"${pr.gotD2d ? " checked" : ""}></td></tr>` +
-    `<tr><td>Flyers / hangers</td><td>${PERMIT_LABEL[pr.flyer] || "Unknown"} <input type="checkbox" class="got" data-g="flyer" title="Permit obtained"${pr.gotFlyer ? " checked" : ""}></td></tr>` +
+    `<tr><td>D2D canvassing</td><td>${PERMIT_LABEL[pr.d2d] || "Unknown"}${got(pr.d2d, pr.gotD2d, "d2d")}</td></tr>` +
+    `<tr><td>Flyers / hangers</td><td>${PERMIT_LABEL[pr.flyer] || "Unknown"}${got(pr.flyer, pr.gotFlyer, "flyer")}</td></tr>` +
     (pr.jurisdiction ? `<tr><td>Jurisdiction</td><td>${esc(pr.jurisdiction)}</td></tr>` : "") +
     (pr.hours ? `<tr><td>Hours</td><td>${esc(pr.hours)}</td></tr>` : "") +
     (pr.fee ? `<tr><td>Fees</td><td>${esc(pr.fee)}</td></tr>` : "") +
@@ -876,7 +878,14 @@ function loadPermitForm(id) {
   for (const [id, k] of [["pJur", "jurisdiction"], ["pHours", "hours"], ["pFee", "fee"], ["pProc", "processing"], ["pAppUrl", "appUrl"], ["pNotes", "notes"], ["pSource", "source"], ["pVerified", "verified"]])
     $(id).value = p[k] || "";
   $("permitDelete").classList.toggle("hidden", !PERMITS[id]);
+  syncGot();
 }
+function syncGot() { // obtained only applies when a permit is actually required
+  $("pGotD2d").parentElement.classList.toggle("hidden", !["permit", "conditional"].includes($("pD2d").value));
+  $("pGotFlyer").parentElement.classList.toggle("hidden", !["permit", "conditional"].includes($("pFlyer").value));
+}
+$("pD2d").addEventListener("change", syncGot);
+$("pFlyer").addEventListener("change", syncGot);
 function openPermitEditor(code) {
   renderPermitList(); loadPermitForm(code ? permitIdx[code] || null : null);
   const d = $("permitDialog");
