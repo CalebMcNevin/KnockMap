@@ -277,7 +277,8 @@
     <label><input type="checkbox" id="pGotFlyer"> obtained</label></div>
   <div class="frow"><span>Jurisdiction</span><input type="text" id="pJur" placeholder="City of Example / Example County (unincorporated)"></div>
   <div class="frow"><span>Allowed hours</span><input type="text" id="pHours" placeholder="9:00 AM to 7:00 PM"></div>
-  <div class="frow"><span>Fees</span><input type="text" id="pFee" placeholder="$50 per person, annual"></div>
+  <div class="frow"><span>Individual fee</span><input type="text" id="pFeeIndiv" placeholder="$50 per person, annual"></div>
+  <div class="frow"><span>Business fee</span><input type="text" id="pFeeBiz" placeholder="$100 annual"></div>
   <div class="frow"><span>Processing</span><input type="text" id="pProc" placeholder="2-3 weeks"></div>
   <div class="frow"><span>Application URL</span><input type="url" id="pAppUrl" placeholder="https://"></div>
   <div class="frow"><span>Notes</span><input type="text" id="pNotes"></div>
@@ -453,8 +454,10 @@ function metricOptionsHtml() { // Pinned copies first, originals stay in their g
 // one record per permit/jurisdiction, covering many zips/FSAs: { codes: [...], d2d, flyer, jurisdiction, ... }
 let PERMITS = {}; // id -> record
 try { PERMITS = JSON.parse(localStorage.getItem("dkm-permits") || "{}") || {}; } catch (e) { /* file:// quirks */ }
-for (const [k, v] of Object.entries(PERMITS)) // migrate pre-multi-code records (id used to be the single code)
+for (const [k, v] of Object.entries(PERMITS)) { // migrate pre-multi-code records (id used to be the single code)
   if (v && typeof v === "object" && !Array.isArray(v.codes)) { v.codes = [k.toUpperCase().replace(/\s+/g, "")]; }
+  if (v && typeof v === "object" && v.fee && !v.feeIndiv && !v.feeBiz) { v.feeIndiv = v.fee; delete v.fee; } // single fee became individual fee
+}
 const savePermits = () => {
   try { localStorage.setItem("dkm-permits", JSON.stringify(PERMITS)); } catch (e) { /* storage unavailable */ }
   rebuildPermitIdx();
@@ -822,7 +825,8 @@ function popupHtml(r) {
     `<tr><td>Flyers / hangers</td><td>${PERMIT_LABEL[pr.flyer] || "Unknown"}${got(pr.flyer, pr.gotFlyer, "flyer")}</td></tr>` +
     (pr.jurisdiction ? `<tr><td>Jurisdiction</td><td>${esc(pr.jurisdiction)}</td></tr>` : "") +
     (pr.hours ? `<tr><td>Hours</td><td>${esc(pr.hours)}</td></tr>` : "") +
-    (pr.fee ? `<tr><td>Fees</td><td>${esc(pr.fee)}</td></tr>` : "") +
+    (pr.feeIndiv ? `<tr><td>Individual fee</td><td>${esc(pr.feeIndiv)}</td></tr>` : "") +
+    (pr.feeBiz ? `<tr><td>Business fee</td><td>${esc(pr.feeBiz)}</td></tr>` : "") +
     (pr.processing ? `<tr><td>Processing</td><td>${esc(pr.processing)}</td></tr>` : "") +
     (pr.appUrl ? `<tr><td>Apply</td><td>${link(pr.appUrl, "application")}</td></tr>` : "") +
     (pr.notes ? `<tr><td>Notes</td><td>${esc(pr.notes)}</td></tr>` : "") +
@@ -875,7 +879,7 @@ function loadPermitForm(id) {
   $("pCode").value = (p.codes || []).join(", ");
   $("pD2d").value = p.d2d || "unknown"; $("pFlyer").value = p.flyer || "unknown";
   $("pGotD2d").checked = !!p.gotD2d; $("pGotFlyer").checked = !!p.gotFlyer;
-  for (const [id, k] of [["pJur", "jurisdiction"], ["pHours", "hours"], ["pFee", "fee"], ["pProc", "processing"], ["pAppUrl", "appUrl"], ["pNotes", "notes"], ["pSource", "source"], ["pVerified", "verified"]])
+  for (const [id, k] of [["pJur", "jurisdiction"], ["pHours", "hours"], ["pFeeIndiv", "feeIndiv"], ["pFeeBiz", "feeBiz"], ["pProc", "processing"], ["pAppUrl", "appUrl"], ["pNotes", "notes"], ["pSource", "source"], ["pVerified", "verified"]])
     $(id).value = p[k] || "";
   $("permitDelete").classList.toggle("hidden", !PERMITS[id]);
   syncGot();
@@ -902,7 +906,7 @@ $("permitSave").addEventListener("click", () => {
     codes,
     d2d: $("pD2d").value, flyer: $("pFlyer").value,
     jurisdiction: $("pJur").value.trim(), hours: $("pHours").value.trim(),
-    fee: $("pFee").value.trim(), processing: $("pProc").value.trim(),
+    feeIndiv: $("pFeeIndiv").value.trim(), feeBiz: $("pFeeBiz").value.trim(), processing: $("pProc").value.trim(),
     appUrl: $("pAppUrl").value.trim(), notes: $("pNotes").value.trim(),
     source: $("pSource").value.trim(), verified: $("pVerified").value,
     gotD2d: $("pGotD2d").checked, gotFlyer: $("pGotFlyer").checked
