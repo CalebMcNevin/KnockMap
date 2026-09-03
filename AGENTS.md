@@ -6,6 +6,7 @@
 ## Project
 
 - KnockMap: static single-page tool that maps Weed Man door-knocking season report CSVs by US zip / Canadian FSA onto a Leaflet map (choropleth boundaries, census housing denominators, per-metric color scales)
+- Permit tracking: records covering one or many zips/FSAs (comma/space separated codes list; one jurisdiction's rule shared by all its codes) stored in localStorage `dkm-permits` (separate from `dkm-prefs`), edited in the Permits dialog, shown as a categorical map overlay ("Permit status" toggle with D2D/flyers picker) and a popup Permits section; shared between computers via export/import JSON; zip/FSA is a proxy for the legal jurisdiction, the jurisdiction field carries the real authority
 - Stack: one `index.html` of vanilla JS (Leaflet 1.9 + PapaParse via CDN), no framework, no backend, no build step; works over HTTP or `file://`
 - UI must follow the Weed Man brand guide at `../STYLE_GUIDE.md` (tokens are CSS vars in `:root`; canvas colors hardcode the same hex values since canvas cannot use CSS vars)
 - Generated data files, never hand-edit, regenerate with the build scripts:

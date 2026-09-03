@@ -132,6 +132,21 @@
   tr:hover .pin { opacity: 1; }
   .pin.on { opacity: 1; } /* pinned stays visible without hover */
   .pin:not(.on) { filter: grayscale(1); } /* hover offers a gray pin; pinned is red */
+  #legend .sw { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: var(--wm-gray-700); font-size: 13px; }
+  #legend .sw i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  #permitLegend b { display: block; margin-bottom: 2px; }
+  dialog#permitDialog .frow { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+  dialog#permitDialog .frow > span { color: var(--wm-gray-700); font-size: 13px; min-width: 118px; text-align: right; }
+  dialog#permitDialog input[type="text"], dialog#permitDialog input[type="url"], dialog#permitDialog input[type="date"], dialog#permitDialog select {
+    flex: 1; min-width: 0; font: inherit; font-size: 14px; padding: 5px 8px;
+    border: 1px solid var(--wm-neutral-200); border-radius: var(--radius-sm);
+  }
+  dialog#permitDialog .frow label { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--wm-gray-700); white-space: nowrap; }
+  #permitList { max-height: 130px; overflow: auto; border: 1px solid var(--wm-neutral-100); border-radius: var(--radius-sm); margin: 8px 0; }
+  #permitList:empty { display: none; }
+  #permitList div { padding: 4px 10px; cursor: pointer; font-size: 14px; }
+  #permitList div:hover { background: var(--wm-neutral-50); }
+  #permitList i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; }
   dialog.dlg {
     border: 1px solid var(--wm-neutral-200); border-radius: var(--radius);
     box-shadow: var(--shadow-md); padding: 20px; max-width: 560px;
@@ -147,7 +162,7 @@
   dialog#sourcesDialog table { border-collapse: collapse; }
   dialog#sourcesDialog td { padding: 4px 16px 4px 0; vertical-align: top; }
   dialog#sourcesDialog td:first-child { color: var(--wm-gray-700); font-size: 13px; white-space: nowrap; }
-  dialog#sourcesDialog .fine { color: var(--wm-gray-700); font-size: 13px; margin: 14px 0 16px; }
+  dialog.dlg .fine { color: var(--wm-gray-700); font-size: 13px; margin: 14px 0 16px; }
   dialog#sourcesDialog #sourcesClose { color: var(--wm-green-700); }
   dialog.dlg ol.steps { margin: 0 0 16px; padding-left: 22px; }
   dialog.dlg ol.steps li { margin: 14px 0 6px; font-weight: 600; color: var(--wm-green-700); }
@@ -200,6 +215,12 @@
     <input type="number" id="maxIn" placeholder="max" step="any">
   </span>
   <label class="hidden" id="hideZeroWrap"><input type="checkbox" id="hideZero"> Hide zeros</label>
+  <label class="hidden" id="permitWrap" title="Recolor areas by permit requirement instead of the selected metric"><input type="checkbox" id="permitOn"> Permit status</label>
+  <label class="hidden" id="permitActWrap"><select id="permitAct">
+    <option value="d2d">D2D canvassing</option>
+    <option value="flyer">Flyers / hangers</option>
+  </select></label>
+  <button id="permitsBtn" title="Track permit requirements per zip/FSA">Permits</button>
   <button id="sourcesBtn" title="Boundary, housing-count and basemap sources & dates">Data sources</button>
   <span id="summary"></span>
   </div>
@@ -235,6 +256,39 @@
   </ol>
   <button id="helpClose">Close</button>
 </dialog>
+<dialog id="permitDialog" class="dlg" tabindex="-1">
+  <h2 tabindex="-1">Permit requirements</h2>
+  <div id="permitList"></div>
+  <div>
+    <button id="permitNewBtn">New record</button>
+    <button id="permitImportBtn" title="Merge permit records from a dkm-permits.json export">Import JSON</button>
+    <button id="permitExportBtn" title="Save all records to a file you can share or import on another computer">Export JSON</button>
+    <input type="file" id="permitFile" accept=".json,application/json" class="hidden">
+  </div>
+  <p class="fine" style="margin:10px 0">Records live in this browser only. Export to move them to another computer.
+    A zip/FSA is not a legal jurisdiction: keep the jurisdiction field pointing at the city or county whose rule this is.</p>
+  <hr style="border:none;border-top:1px solid var(--wm-neutral-100);margin:12px 0">
+  <div class="frow"><span>Zips / FSAs</span><input type="text" id="pCode" placeholder="90210, 90211, 90212" title="One or more codes, separated by commas or spaces"></div>
+  <div class="frow"><span>D2D canvassing</span>
+    <select id="pD2d"><option value="unknown">Unknown</option><option value="none">No permit needed</option><option value="permit">Permit required</option><option value="conditional">Conditional</option><option value="prohibited">Prohibited</option></select>
+    <label><input type="checkbox" id="pGotD2d"> obtained</label></div>
+  <div class="frow"><span>Flyers / hangers</span>
+    <select id="pFlyer"><option value="unknown">Unknown</option><option value="none">No permit needed</option><option value="permit">Permit required</option><option value="conditional">Conditional</option><option value="prohibited">Prohibited</option></select>
+    <label><input type="checkbox" id="pGotFlyer"> obtained</label></div>
+  <div class="frow"><span>Jurisdiction</span><input type="text" id="pJur" placeholder="City of Example / Example County (unincorporated)"></div>
+  <div class="frow"><span>Allowed hours</span><input type="text" id="pHours" placeholder="9:00 AM to 7:00 PM"></div>
+  <div class="frow"><span>Fees</span><input type="text" id="pFee" placeholder="$50 per person, annual"></div>
+  <div class="frow"><span>Processing</span><input type="text" id="pProc" placeholder="2-3 weeks"></div>
+  <div class="frow"><span>Application URL</span><input type="url" id="pAppUrl" placeholder="https://"></div>
+  <div class="frow"><span>Notes</span><input type="text" id="pNotes"></div>
+  <div class="frow"><span>Source URL</span><input type="url" id="pSource" placeholder="https://"></div>
+  <div class="frow"><span>Last verified</span><input type="date" id="pVerified"></div>
+  <div style="margin-top:12px">
+    <button id="permitSave">Save</button>
+    <button id="permitDelete" class="hidden">Delete record</button>
+    <button id="permitClose">Close</button>
+  </div>
+</dialog>
 <div id="banner" class="hidden"></div>
 <div id="map"></div>
 <div id="legend" class="hidden">
@@ -242,6 +296,13 @@
   <div class="bar"></div>
   <div class="ticks"><span id="tLow"></span><span id="tMid"></span><span id="tHigh"></span></div>
   <div class="none"><i></i> no value</div>
+  <div id="permitLegend" class="hidden">
+    <b id="permitLegendTitle"></b>
+    <div class="sw"><i style="background:#00653A"></i> no permit needed</div>
+    <div class="sw"><i style="background:#F2BB2A"></i> permit / conditional</div>
+    <div class="sw"><i style="background:#DC2626"></i> prohibited</div>
+    <div class="sw"><i style="background:#7A9189"></i> unknown / no record</div>
+  </div>
 </div>
 <div id="drop">
   <div class="big">Drop your CSV report here</div>
@@ -388,6 +449,28 @@ function metricOptionsHtml() { // Pinned copies first, originals stay in their g
   return (pins.length ? `<optgroup label="Pinned">` + pins.map(h => `<option value="${esc(h)}">${esc(dispName(h))}</option>`).join("") + `</optgroup>` : "") +
     optgroupHtml(numericCols);
 }
+// ---- permit tracking (records in localStorage, shared via export/import JSON) ----
+// one record per permit/jurisdiction, covering many zips/FSAs: { codes: [...], d2d, flyer, jurisdiction, ... }
+let PERMITS = {}; // id -> record
+try { PERMITS = JSON.parse(localStorage.getItem("dkm-permits") || "{}") || {}; } catch (e) { /* file:// quirks */ }
+for (const [k, v] of Object.entries(PERMITS)) // migrate pre-multi-code records (id used to be the single code)
+  if (v && typeof v === "object" && !Array.isArray(v.codes)) { v.codes = [k.toUpperCase().replace(/\s+/g, "")]; }
+const savePermits = () => {
+  try { localStorage.setItem("dkm-permits", JSON.stringify(PERMITS)); } catch (e) { /* storage unavailable */ }
+  rebuildPermitIdx();
+};
+let permitIdx = {}; // code -> record id
+function rebuildPermitIdx() {
+  permitIdx = {};
+  for (const [id, r] of Object.entries(PERMITS)) if (r && Array.isArray(r.codes)) for (const c of r.codes) permitIdx[c] = id;
+}
+rebuildPermitIdx();
+const permitRec = code => PERMITS[permitIdx[code]] || null;
+const PERMIT_LABEL = { none: "No permit needed", permit: "Permit required", conditional: "Conditional", prohibited: "Prohibited", unknown: "Unknown" };
+// canvas can't use CSS vars: hardcode the brand hexes (green-500 / orange-500 / error / neutral-400)
+const PERMIT_COLORS = { none: "#00653A", permit: "#F2BB2A", conditional: "#F2BB2A", prohibited: "#DC2626", unknown: "#7A9189" };
+const permitStatus = (code, act) => { const r = permitRec(code); return r && PERMIT_LABEL[r[act]] !== undefined ? r[act] : "unknown"; };
+const permitFill = (code, act) => PERMIT_COLORS[permitStatus(code, act)];
 function optgroupHtml(cols, selected) {
   const groups = {};
   for (const h of cols) if (!HIDDEN_DISPLAY.has(h) && !HIDDEN_DROPDOWN.has(h)) (groups[classifyCol(h)] = groups[classifyCol(h)] || []).push(h);
@@ -547,6 +630,8 @@ function loadRows(data, fname) {
   refreshSelectors();
   $("metric").classList.remove("hidden");
   $("hideZeroWrap").classList.remove("hidden");
+  $("permitWrap").classList.remove("hidden");
+  syncPermitAct();
   $("scaleWrap").classList.remove("hidden");
   $("logWrap").classList.remove("hidden");
   $("filterWrap").classList.remove("hidden");
@@ -578,13 +663,16 @@ function applyControls() {
   fOpts.value = [...fOpts.options].some(o => o.value === fCol) ? fCol : "";
   $("filterIn").value = p && p.fVal != null ? p.fVal : (fOpts.value === "KnockCount" ? "20" : "");
   $("hideZero").checked = p ? !!p.hideZero : false;
+  $("permitOn").checked = p ? !!p.pOn : false;
+  $("permitAct").value = p && p.pAct === "flyer" ? "flyer" : "d2d";
+  syncPermitAct();
 }
 function savePrefs() {
   try {
     localStorage.setItem("dkm-prefs", JSON.stringify({
       metric: metricCol, scale: $("scaleMode").value, log: $("logMode").value,
       fCol: $("filterCol").value, fVal: $("filterIn").value, hideZero: $("hideZero").checked,
-      pins: [...pinned]
+      pins: [...pinned], pOn: $("permitOn").checked, pAct: $("permitAct").value
     }));
   } catch (e) { /* storage unavailable: defaults only */ }
 }
@@ -627,6 +715,10 @@ function draw() {
     return logOn ? Math.log1p(x - lo) / Math.log1p(hi - lo) : (x - lo) / (hi - lo);
   };
   const haveBounds = typeof BOUNDARIES !== "undefined";
+  const permitMode = $("permitOn").checked, permitAct = $("permitAct").value;
+  const tipTxt = r => permitMode
+    ? `${r.code} · ${PERMIT_LABEL[permitStatus(r.code, permitAct)]}${permitRec(r.code) ? "" : " (no record)"}`
+    : `${r.code} · ${esc(dispName(metricCol))}: ${fmtM(metricCol, r.vals[metricCol])}`;
   const bounds = L.latLngBounds();
 
   function tOf(r) {
@@ -636,13 +728,13 @@ function draw() {
 
   for (const r of shown) {
     const t = tOf(r);
-    const fill = t == null ? "#7A9189" : heat(t); // no-value = wm-neutral-400
+    const fill = permitMode ? permitFill(r.code, permitAct) : t == null ? "#7A9189" : heat(t); // permit overlay: categorical, not the ramp
     const polys = haveBounds && BOUNDARIES[r.code];
     if (polys) {
       // one multipolygon layer per code (poly = [outer, holes...]): all disjoint parts hover/highlight together
       const style = { color: "#7A9189", weight: 0.75, fillColor: fill, fillOpacity: 0.55 }; // wm-neutral-400 stroke
       const p = L.polygon(polys, style)
-        .bindTooltip(`${r.code} · ${esc(dispName(metricCol))}: ${fmtM(metricCol, r.vals[metricCol])}`, { sticky: true })
+        .bindTooltip(tipTxt(r), { sticky: true })
         .bindPopup(() => popupHtml(r)) // function, not string: rebuilt fresh on every open so pins apply globally
         .on("mouseover", e => e.target.setStyle({ weight: 2.5, fillOpacity: 0.85 })) // area highlight, not just edge: complicated shapes need the fill to pop
         .on("mouseout", e => e.target.setStyle({ weight: 0.75, fillOpacity: 0.55 }))
@@ -654,7 +746,7 @@ function draw() {
         radius: 5 + 16 * (t == null ? 0.15 : Math.sqrt(t)),
         color: fill, weight: 1, fillColor: fill, fillOpacity: 0.55
       })
-        .bindTooltip(`${r.code} · ${esc(dispName(metricCol))}: ${fmtM(metricCol, r.vals[metricCol])}`)
+        .bindTooltip(tipTxt(r))
         .bindPopup(() => popupHtml(r))
         .addTo(layer);
       cm.row = r;
@@ -665,6 +757,10 @@ function draw() {
   $("legendTitle").textContent = dispName(metricCol) + (logOn ? " (log)" : "");
   $("tLow").textContent = fmtTick(metricCol, lo); $("tMid").textContent = fmtTick(metricCol, mid); $("tHigh").textContent = fmtTick(metricCol, hi);
   $("legend").classList.remove("hidden");
+  $("legendTitle").classList.toggle("hidden", permitMode);
+  for (const el of $("legend").querySelectorAll(".bar,.ticks,.none")) el.classList.toggle("hidden", permitMode);
+  $("permitLegend").classList.toggle("hidden", !permitMode);
+  if (permitMode) $("permitLegendTitle").textContent = `Permits: ${permitAct === "d2d" ? "D2D canvassing" : "Flyers / hangers"}`;
 
   // rows that can never draw: no boundary polygon and no centroid (typos, retired codes).
   // Centroid-less codes WITH a polygon (L3L, R5J.., S7A.. -- missing from GeoNames) still draw.
@@ -717,7 +813,21 @@ function popupHtml(r) {
     return `<tr class="gh"><td colspan="2">${g}</td></tr>` +
       groups[g].map(rowHtml).join("");
   }).join("");
-  return `<div class="pbody" style="max-height:320px;overflow:auto">${title}<table>${pinnedSection}${sections}</table></div>`;
+  const pr = permitRec(r.code);
+  const link = (u, txt) => u ? ` <a href="${esc(u)}" target="_blank" rel="noopener">${esc(txt || u.replace(/^https?:\/\//, "").slice(0, 40))}</a>` : "";
+  const permitSection = pr ? `<tr class="gh"><td colspan="2">Permits <button class="pedit" style="font-size:11px;padding:1px 8px">Edit</button></td></tr>` +
+    `<tr><td>D2D canvassing</td><td>${PERMIT_LABEL[pr.d2d] || "Unknown"} <input type="checkbox" class="got" data-g="d2d" title="Permit obtained"${pr.gotD2d ? " checked" : ""}></td></tr>` +
+    `<tr><td>Flyers / hangers</td><td>${PERMIT_LABEL[pr.flyer] || "Unknown"} <input type="checkbox" class="got" data-g="flyer" title="Permit obtained"${pr.gotFlyer ? " checked" : ""}></td></tr>` +
+    (pr.jurisdiction ? `<tr><td>Jurisdiction</td><td>${esc(pr.jurisdiction)}</td></tr>` : "") +
+    (pr.hours ? `<tr><td>Hours</td><td>${esc(pr.hours)}</td></tr>` : "") +
+    (pr.fee ? `<tr><td>Fees</td><td>${esc(pr.fee)}</td></tr>` : "") +
+    (pr.processing ? `<tr><td>Processing</td><td>${esc(pr.processing)}</td></tr>` : "") +
+    (pr.appUrl ? `<tr><td>Apply</td><td>${link(pr.appUrl, "application")}</td></tr>` : "") +
+    (pr.notes ? `<tr><td>Notes</td><td>${esc(pr.notes)}</td></tr>` : "") +
+    (pr.source ? `<tr><td>Source</td><td>${link(pr.source)}</td></tr>` : "") +
+    (pr.verified ? `<tr><td>Verified</td><td>${esc(pr.verified)}</td></tr>` : "")
+    : "";
+  return `<div class="pbody" style="max-height:320px;overflow:auto">${title}<table>${pinnedSection}${permitSection}${sections}</table></div>`;
 }
 
 // ---- wiring --------------------------------------------------------------
@@ -750,6 +860,90 @@ function togglePin(m) {
     if (nb) nb.scrollTop = st;
   }
 }
+// permit editor
+let editingCode = null;
+function syncPermitAct() { $("permitActWrap").classList.toggle("hidden", !$("permitOn").checked); }
+function renderPermitList() {
+  $("permitList").innerHTML = Object.entries(PERMITS).sort((a, b) => (a[1].jurisdiction || "").localeCompare(b[1].jurisdiction || "")).map(([id, r]) =>
+    `<div data-i="${esc(id)}"><i style="background:${PERMIT_COLORS[r.d2d] || "#7A9189"}"></i><b>${esc(r.codes.join(", "))}</b> — ${esc(r.jurisdiction || "no jurisdiction set")}</div>`).join("");
+}
+function loadPermitForm(id) {
+  editingCode = id || null; // record id (null = new)
+  const p = PERMITS[id] || {};
+  $("pCode").value = (p.codes || []).join(", ");
+  $("pD2d").value = p.d2d || "unknown"; $("pFlyer").value = p.flyer || "unknown";
+  $("pGotD2d").checked = !!p.gotD2d; $("pGotFlyer").checked = !!p.gotFlyer;
+  for (const [id, k] of [["pJur", "jurisdiction"], ["pHours", "hours"], ["pFee", "fee"], ["pProc", "processing"], ["pAppUrl", "appUrl"], ["pNotes", "notes"], ["pSource", "source"], ["pVerified", "verified"]])
+    $(id).value = p[k] || "";
+  $("permitDelete").classList.toggle("hidden", !PERMITS[id]);
+}
+function openPermitEditor(code) {
+  renderPermitList(); loadPermitForm(code ? permitIdx[code] || null : null);
+  const d = $("permitDialog");
+  d.showModal();
+  d.querySelector("h2").focus({ preventScroll: true });
+}
+$("permitsBtn").addEventListener("click", () => openPermitEditor(""));
+$("permitNewBtn").addEventListener("click", () => loadPermitForm(""));
+$("permitSave").addEventListener("click", () => {
+  const codes = $("pCode").value.toUpperCase().split(/[\s,;]+/).filter(Boolean); // match row-code normalization
+  if (!codes.length) return banner("A permit record needs at least one zip/FSA code.");
+  const id = editingCode || "p" + Date.now().toString(36);
+  PERMITS[id] = {
+    codes,
+    d2d: $("pD2d").value, flyer: $("pFlyer").value,
+    jurisdiction: $("pJur").value.trim(), hours: $("pHours").value.trim(),
+    fee: $("pFee").value.trim(), processing: $("pProc").value.trim(),
+    appUrl: $("pAppUrl").value.trim(), notes: $("pNotes").value.trim(),
+    source: $("pSource").value.trim(), verified: $("pVerified").value,
+    gotD2d: $("pGotD2d").checked, gotFlyer: $("pGotFlyer").checked
+  };
+  savePermits(); loadPermitForm(id); renderPermitList(); draw();
+});
+$("permitDelete").addEventListener("click", () => {
+  if (editingCode && PERMITS[editingCode]) { delete PERMITS[editingCode]; savePermits(); loadPermitForm(null); renderPermitList(); draw(); }
+});
+$("permitClose").addEventListener("click", () => $("permitDialog").close());
+$("permitList").addEventListener("click", e => { const d = e.target.closest("div[data-i]"); if (d) loadPermitForm(d.dataset.i); });
+$("permitImportBtn").addEventListener("click", () => $("permitFile").click());
+$("permitFile").addEventListener("change", e => {
+  const f = e.target.files[0];
+  if (!f) { e.target.value = ""; return; }
+  const rd = new FileReader();
+  const reset = () => { e.target.value = ""; }; // only after the read finishes: clearing mid-read aborts the file data
+  rd.onload = () => {
+    reset();
+    try {
+      const j = JSON.parse(rd.result);
+      let n = 0;
+      for (const [k, v] of Object.entries(j)) if (v && typeof v === "object" && Array.isArray(v.codes)) { PERMITS[k] = v; n++; } // merge: import overwrites same record ids
+      savePermits(); renderPermitList(); draw();
+      banner(`Imported ${n} permit record${n === 1 ? "" : "s"}.`);
+    } catch (err) { banner("Could not read that file as permit JSON."); }
+  };
+  rd.onerror = () => { reset(); banner("Could not read that file as permit JSON."); };
+  rd.readAsText(f);
+});
+$("permitExportBtn").addEventListener("click", () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(PERMITS, null, 2)], { type: "application/json" }));
+  a.download = "dkm-permits.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+$("permitOn").addEventListener("change", () => { syncPermitAct(); draw(); });
+$("permitAct").addEventListener("change", draw);
+document.addEventListener("change", e => { // obtained checkboxes inside popups
+  if (!e.target.classList || !e.target.classList.contains("got")) return;
+  if (openPopup && openPopup._source && openPopup._source.row) {
+    const rec = permitRec(openPopup._source.row.code);
+    if (rec) { rec[e.target.dataset.g === "d2d" ? "gotD2d" : "gotFlyer"] = e.target.checked; savePermits(); }
+  }
+});
+document.addEventListener("click", e => { // Edit button in a popup's Permits section
+  if (e.target.closest(".pedit") && openPopup && openPopup._source && openPopup._source.row)
+    openPermitEditor(openPopup._source.row.code);
+});
 $("scaleMode").addEventListener("change", e => {
   $("customRange").classList.toggle("hidden", e.target.value !== "custom");
   draw();
@@ -763,8 +957,8 @@ $("helpBtn").addEventListener("click", () => {
   requestAnimationFrame(() => { d.scrollTop = 0; });
 });
 $("helpClose").addEventListener("click", () => $("helpDialog").close());
-// click on the backdrop (the dialog element itself) closes -- same for both dialogs
-for (const d of ["helpDialog", "sourcesDialog"]) {
+// click on the backdrop (the dialog element itself) closes -- same for all dialogs
+for (const d of ["helpDialog", "sourcesDialog", "permitDialog"]) {
   const el = $(d);
   el.addEventListener("click", e => { if (e.target === el) el.close(); });
 }
