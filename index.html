@@ -96,8 +96,8 @@
   }
   #drop .btn:hover { background: var(--wm-orange-400); }
   #drop .btn:active { background: var(--wm-orange-600); }
-  #uploadAgain { cursor: pointer; color: var(--wm-green-700); }
-  #uploadAgain:hover { color: var(--wm-green-500); }
+  #uploadAgain, #custUpload { cursor: pointer; color: var(--wm-green-700); }
+  #uploadAgain:hover, #custUpload:hover { color: var(--wm-green-500); }
 
   #banner { /* error variant */
     padding: 8px 20px; background: #FFF5F5; color: var(--wm-error);
@@ -193,6 +193,7 @@
     <span id="seasonInfo" class="hidden"></span>
     <span class="spacer"></span>
     <label id="uploadAgain">↻ New CSV <input type="file" id="file" accept=".csv,text/csv" class="hidden"></label>
+    <label id="custUpload" title="Optional: customer list CSV (needs a SERVICEPOSTALZIP column). Adds Customers and Customer Penetration % per zip/FSA.">Customers <input type="file" id="custFile" accept=".csv,text/csv" class="hidden"></label>
     <button id="helpBtn" class="icon" title="How to export the report CSV from WEMMS">?</button>
   </div>
   <div class="row2">
@@ -220,6 +221,12 @@
     <option value="d2d">D2D canvassing</option>
     <option value="flyer">Flyers / hangers</option>
   </select></label>
+  <label class="hidden" id="penWrap" title="Denominator for Customer Penetration %: census occupied dwellings, or the homes (addresses) counted in the report itself">Penetration vs
+    <select id="penDen">
+      <option value="census">Census homes</option>
+      <option value="homes">WEMMS Homes</option>
+    </select>
+  </label>
   <button id="permitsBtn" title="Track permit requirements per zip/FSA">Permits</button>
   <button id="sourcesBtn" title="Boundary, housing-count and basemap sources & dates">Data sources</button>
   <span id="summary"></span>
@@ -230,14 +237,15 @@
   <table>
     <tr><td>US zip boundaries</td><td>US Census Bureau: 2020 ZCTA cartographic boundaries (public domain)</td></tr>
     <tr><td>Canada FSA boundaries</td><td>Statistics Canada: 2021 FSA boundaries (Open Government Licence, Canada)</td></tr>
-    <tr><td>US home counts</td><td>US Census Bureau: American Community Survey 2023, 5-year estimates, occupied housing units</td></tr>
-    <tr><td>Canada home counts</td><td>Statistics Canada: 2021 Census Profile, private dwellings occupied by usual residents</td></tr>
+    <tr><td>US home counts</td><td>US Census Bureau: American Community Survey 2023, 5-year estimates, occupied houses only (detached, townhouse, 2-unit, mobile; apartments and condos excluded)</td></tr>
+    <tr><td>Canada home counts</td><td>Statistics Canada: 2021 Census Profile, occupied houses only (detached, semi-detached, row house, duplex, other single-attached, movable; apartments excluded)</td></tr>
     <tr><td>Zip/FSA locations (no boundary)</td><td>GeoNames postal codes (CC BY 4.0, geonames.org)</td></tr>
     <tr><td>Basemap</td><td>Esri World Light Gray Canvas, Tiles &copy; Esri</td></tr>
   </table>
-  <p class="fine">Census figures lag today's housing stock, and ACS values are estimates, not counts.
-    US Census ZCTAs approximate (but don't exactly match) postal zip codes, so some zips appear as circles.
-    "CensusHomes" counts occupied private dwellings only; seasonal and vacant homes are excluded.</p>
+  <p class="fine">"Census Homes" counts only lawncare-eligible occupied dwellings (houses; apartment and condo units are
+    excluded), so it undercounts total residences in dense areas. Census figures lag today's housing stock, and ACS
+    values are estimates, not counts. US Census ZCTAs approximate (but don't exactly match) postal zip codes, so some
+    zips appear as circles.</p>
   <button id="sourcesClose">Close</button>
 </dialog>
 <dialog id="helpDialog" class="dlg" tabindex="-1">
@@ -439,7 +447,8 @@ const DISPLAY = { // display-only: internal names feed every derivation
   OrderPerKm2: "Orders Per km²", RevenuePerKm2: "Revenue Per km²",
   HomesPerKm2: "Homes Per km²", HomesPerSqMile: "Homes Per Square Mile",
   AreaKm2: "Area (km²)", AreaSqMile: "Area (sq mi)", PercentageOfCensusHomesKnocked: "Percentage of Census Homes Knocked",
-  AddressCoveragePct: "Address Coverage %"
+  AddressCoveragePct: "Address Coverage %",
+  CustomerCount: "Customers", CustomerPenetrationPct: "Customer Penetration %"
 };
 const dispName = h => DISPLAY[h] || h.replace(/([a-z])([A-Z\d])/g, "$1 $2"); // unknown future columns still get spaced
 const HIDDEN_DISPLAY = new Set(["NoCount", "AvgRevenuePer100Homes"]); // parsed for filters/math but kept out of dropdown and popups
@@ -628,12 +637,14 @@ function loadRows(data, fname) {
     if (hi >= 0) headers.splice(hi + 1, 0, headers.splice(headers.indexOf("CensusHomes"), 1)[0]);
   }
   deriveDensity(); // no-op when boundaries haven't loaded yet; onload re-runs it
+  applyCustomerCols(); // no-op until a customer list has loaded (either file may arrive first)
 
   fitPending = true; // new file: re-fit viewport once
   refreshSelectors();
   $("metric").classList.remove("hidden");
   $("hideZeroWrap").classList.remove("hidden");
   $("permitWrap").classList.remove("hidden");
+  $("penWrap").classList.remove("hidden");
   syncPermitAct();
   $("scaleWrap").classList.remove("hidden");
   $("logWrap").classList.remove("hidden");
@@ -668,6 +679,7 @@ function applyControls() {
   $("hideZero").checked = p ? !!p.hideZero : false;
   $("permitOn").checked = p ? !!p.pOn : false;
   $("permitAct").value = p && p.pAct === "flyer" ? "flyer" : "d2d";
+  $("penDen").value = p && p.pDen === "homes" ? "homes" : "census";
   syncPermitAct();
 }
 function savePrefs() {
@@ -675,10 +687,59 @@ function savePrefs() {
     localStorage.setItem("dkm-prefs", JSON.stringify({
       metric: metricCol, scale: $("scaleMode").value, log: $("logMode").value,
       fCol: $("filterCol").value, fVal: $("filterIn").value, hideZero: $("hideZero").checked,
-      pins: [...pinned], pOn: $("permitOn").checked, pAct: $("permitAct").value
+      pins: [...pinned], pOn: $("permitOn").checked, pAct: $("permitAct").value, pDen: $("penDen").value
     }));
   } catch (e) { /* storage unavailable: defaults only */ }
 }
+
+// ---- optional customer list (every row = one current customer) ----
+let CUSTOMERS = null; // code -> unique customer count; null until a customer CSV loads
+function applyCustomerCols() {
+  if (!CUSTOMERS || !rows.length) return false;
+  for (const r of rows) { delete r.raw.CustomerCount; delete r.vals.CustomerCount; delete r.raw.CustomerPenetrationPct; delete r.vals.CustomerPenetrationPct; } // re-upload starts clean
+  const added = new Set();
+  for (const r of rows) {
+    const n = CUSTOMERS[r.code];
+    if (n == null) continue;
+    r.raw.CustomerCount = String(n); r.vals.CustomerCount = n; added.add("CustomerCount");
+    const homes = $("penDen").value === "homes" ? r.vals.HomeCount : r.vals.CensusHomes;
+    if (homes > 0) { const p = Math.round(n / homes * 10000) / 100; r.raw.CustomerPenetrationPct = String(p); r.vals.CustomerPenetrationPct = p; added.add("CustomerPenetrationPct"); }
+  }
+  for (const h of added) if (!csvHeaders.includes(h)) csvHeaders.push(h);
+  return added.size > 0;
+}
+$("custFile").addEventListener("change", e => {
+  const f = e.target.files[0];
+  if (!f) { e.target.value = ""; return; }
+  const reset = () => { e.target.value = ""; }; // only after the read finishes: clearing mid-read aborts the file data
+  Papa.parse(f, {
+    header: true, skipEmptyLines: true,
+    complete: res => {
+      reset();
+      const headers = Object.keys(res.data[0] || {});
+      const zipCol = headers.find(h => h.toLowerCase().replace(/[\s_]/g, "") === "servicepostalzip");
+      if (!res.data.length || !zipCol) return banner('Couldn\'t find a "SERVICEPOSTALZIP" column in that file.');
+      const idCol = headers.find(h => h.toLowerCase().replace(/[\s_]/g, "") === "customerid");
+      const byCode = {};
+      for (const row of res.data) {
+        const code = normalizeCode(row[zipCol]);
+        if (!code) continue;
+        (byCode[code] = byCode[code] || new Set()).add(idCol ? String(row[idCol]) : Math.random()); // dedupe by CUSTOMERID per code
+      }
+      CUSTOMERS = {};
+      let total = 0;
+      for (const [c, set] of Object.entries(byCode)) { CUSTOMERS[c] = set.size; total += set.size; }
+      const applied = applyCustomerCols();
+      if (rows.length) { refreshSelectors(); draw(); }
+      $("penWrap").classList.remove("hidden");
+      banner(`Loaded ${total} customers across ${Object.keys(CUSTOMERS).length} zips/FSAs${applied ? "" : " (none match the current report)"}.`);
+    },
+    error: () => { reset(); banner("Could not read that file. Is it a valid CSV?"); }
+  });
+});
+$("penDen").addEventListener("change", () => { // re-derive penetration against the new denominator
+  if (CUSTOMERS && rows.length) { applyCustomerCols(); savePrefs(); refreshSelectors(); draw(); } // save first: applyControls (inside refreshSelectors) restores from prefs
+});
 
 // ---- rendering -----------------------------------------------------------
 function draw() {
