@@ -39,7 +39,7 @@
     box-shadow: var(--shadow-sm);
   }
   header .row1 { display: flex; align-items: center; gap: 10px; }
-  header .row1 .spacer { flex: 1; }
+  header .spacer { flex: 1; }
   header .row2 { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
   header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; margin: 0; color: var(--wm-green-700); }
   header label { display: flex; align-items: center; gap: 6px; }
@@ -75,6 +75,41 @@
     border-radius: var(--radius-pill); padding: 2px 10px;
     font-size: 11px; font-weight: 600; line-height: 1.4;
   }
+
+  /* primary control: the emphasized metric selector */
+  #metricWrap { gap: 10px; }
+  #metricWrap .lbl {
+    font: 600 11px/1.2 "DM Sans", Inter, ui-sans-serif, sans-serif;
+    color: var(--wm-green-700); text-transform: uppercase; letter-spacing: .07em;
+  }
+  #metric {
+    font-family: "DM Sans", Inter, ui-sans-serif, sans-serif;
+    font-size: 17px; font-weight: 600; color: var(--wm-green-700);
+    padding: 8px 34px 8px 14px; max-width: 380px;
+    border-color: var(--wm-green-300); box-shadow: var(--shadow-sm);
+  }
+  /* secondary options live in a popover (native Popover API: top layer, Esc, light dismiss).
+     No display property on the closed state: the UA's display:none must win. */
+  #settingsBtn { display: inline-flex; align-items: center; gap: 6px; }
+  #settingsBtn svg { flex: none; }
+  #settingsPanel {
+    position: fixed; top: 104px; right: 16px; left: auto; bottom: auto; margin: 0;
+    width: min(360px, calc(100vw - 32px)); padding: 14px 16px;
+    background: var(--card); border: 1px solid var(--wm-neutral-200);
+    border-radius: var(--radius); box-shadow: var(--shadow-md); font-size: 14px;
+  }
+  #settingsPanel:popover-open { display: flex; flex-direction: column; gap: 10px; }
+  #settingsPanel .ph {
+    font: 600 11px/1.2 "DM Sans", Inter, ui-sans-serif, sans-serif;
+    color: var(--wm-green-700); text-transform: uppercase; letter-spacing: .07em;
+  }
+  #settingsPanel .row { display: flex; align-items: center; justify-content: space-between; gap: 8px 10px; flex-wrap: wrap; }
+  #settingsPanel .row > span:first-child { color: var(--wm-gray-700); }
+  #settingsPanel .ctl { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  #settingsPanel label.chk { display: flex; align-items: center; gap: 6px; }
+  #settingsPanel hr { border: none; border-top: 1px solid var(--wm-neutral-100); margin: 2px 0; }
+  #settingsPanel .foot { display: flex; gap: 8px; }
+  #settingsPanel .foot button { font-size: 13px; padding: 5px 10px; }
 
   #map { flex: 1; width: 100vw; min-height: 0; background: var(--bg); }
   .hidden { display: none !important; }
@@ -203,39 +238,16 @@
     <button id="helpBtn" class="icon" title="How to export the report CSV from WEMMS">?</button>
   </div>
   <div class="row2">
-  <label>Color/size by <select id="metric" class="hidden"></select></label>
-  <label id="scaleWrap" class="hidden">Scale
-    <select id="scaleMode" title="Color ramp range. auto = 20th-80th percentile of the data (one outlier can't wash out the map)">
-      <option value="auto">auto</option>
-      <option value="full">min to max</option>
-      <option value="custom">custom</option>
-    </select>
-  </label>
-  <label id="logWrap" class="hidden" title="Logarithmic color scale: auto turns it on when the filtered data is right-skewed (bulk squashed at the bottom of the ramp)">Log
-    <select id="logMode"><option value="auto">auto</option><option value="on">on</option><option value="off">off</option></select>
-  </label>
-  <label id="filterWrap" class="hidden">Filter <select id="filterCol"></select> ≥
-    <input type="number" id="filterIn" step="any" placeholder="any" style="width:70px" title="Hide rows below this threshold (junk / low-significance data), also excluded from the color scale">
-  </label>
-  <span id="customRange" class="hidden">
-    <input type="number" id="minIn" placeholder="min" step="any"> and
-    <input type="number" id="maxIn" placeholder="max" step="any">
-  </span>
-  <label class="hidden" id="hideZeroWrap"><input type="checkbox" id="hideZero"> Hide zeros</label>
-  <label class="hidden" id="permitWrap" title="Recolor areas by permit requirement instead of the selected metric"><input type="checkbox" id="permitOn"> Permit status</label>
-  <label class="hidden" id="permitActWrap"><select id="permitAct">
-    <option value="d2d">D2D canvassing</option>
-    <option value="flyer">Flyers / hangers</option>
-  </select></label>
-  <label class="hidden" id="penWrap" title="Denominator for Customer Penetration %: census occupied dwellings, or the homes (addresses) counted in the report itself">Penetration vs
-    <select id="penDen">
-      <option value="census">Census homes</option>
-      <option value="homes">WEMMS Homes</option>
-    </select>
-  </label>
-  <button id="permitsBtn" title="Track permit requirements per zip/FSA">Permits</button>
-  <button id="sourcesBtn" title="Boundary, housing-count and basemap sources & dates">Data sources</button>
-  <span id="summary"></span>
+    <label id="metricWrap" class="hidden" title="Area colors and circle sizes follow this metric">
+      <span class="lbl">Metric</span>
+      <select id="metric"></select>
+    </label>
+    <span id="summary"></span>
+    <span class="spacer"></span>
+    <button id="settingsBtn" class="hidden" popovertarget="settingsPanel" title="Map display options">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </button>
   </div>
 </header>
 <dialog id="sourcesDialog" class="dlg">
@@ -304,6 +316,51 @@
     <button id="permitClose">Close</button>
   </div>
 </dialog>
+<div id="settingsPanel" popover>
+  <b class="ph">Map options</b>
+  <div class="row"><span>Color scale</span>
+    <span class="ctl">
+      <select id="scaleMode" title="Color ramp range. auto = 20th-80th percentile of the data (one outlier can't wash out the map)">
+        <option value="auto">auto</option>
+        <option value="full">min to max</option>
+        <option value="custom">custom</option>
+      </select>
+      <span id="customRange" class="hidden">
+        <input type="number" id="minIn" placeholder="min" step="any"> and
+        <input type="number" id="maxIn" placeholder="max" step="any">
+      </span>
+    </span>
+  </div>
+  <div class="row"><span>Log scale</span>
+    <select id="logMode" title="Logarithmic color scale: auto turns it on when the filtered data is right-skewed (bulk squashed at the bottom of the ramp)">
+      <option value="auto">auto</option><option value="on">on</option><option value="off">off</option>
+    </select>
+  </div>
+  <div class="row"><span>Filter</span>
+    <span class="ctl"><select id="filterCol"></select> ≥
+      <input type="number" id="filterIn" step="any" placeholder="any" style="width:70px" title="Hide rows below this threshold (junk / low-significance data), also excluded from the color scale">
+    </span>
+  </div>
+  <label class="chk"><input type="checkbox" id="hideZero"> Hide zeros</label>
+  <label class="chk" title="Recolor areas by permit requirement instead of the selected metric"><input type="checkbox" id="permitOn"> Permit status overlay</label>
+  <div class="row hidden" id="permitActWrap"><span>Permit type</span>
+    <select id="permitAct">
+      <option value="d2d">D2D canvassing</option>
+      <option value="flyer">Flyers / hangers</option>
+    </select>
+  </div>
+  <div class="row" title="Denominator for Customer Penetration %: census occupied dwellings, or the homes (addresses) counted in the report itself"><span>Penetration vs</span>
+    <select id="penDen">
+      <option value="census">Census homes</option>
+      <option value="homes">WEMMS Homes</option>
+    </select>
+  </div>
+  <hr>
+  <div class="foot">
+    <button id="permitsBtn" title="Track permit requirements per zip/FSA">Permits</button>
+    <button id="sourcesBtn" title="Boundary, housing-count and basemap sources & dates">Data sources</button>
+  </div>
+</div>
 <div id="banner" class="hidden"></div>
 <div id="map"></div>
 <div id="legend" class="hidden">
@@ -661,14 +718,9 @@ function loadRows(data, fname) {
 
   fitPending = true; // new file: re-fit viewport once
   refreshSelectors();
-  $("metric").classList.remove("hidden");
-  $("hideZeroWrap").classList.remove("hidden");
-  $("permitWrap").classList.remove("hidden");
-  $("penWrap").classList.remove("hidden");
+  $("metricWrap").classList.remove("hidden");
+  $("settingsBtn").classList.remove("hidden");
   syncPermitAct();
-  $("scaleWrap").classList.remove("hidden");
-  $("logWrap").classList.remove("hidden");
-  $("filterWrap").classList.remove("hidden");
   $("drop").classList.add("hidden");
 
   const bits = [`${data.length} rows`, `<span id="shownCount">${rows.length}</span> on map`];
@@ -760,7 +812,6 @@ function loadCustomersText(text, fname) { // parse + remember, so a reload resto
       for (const [c, set] of Object.entries(byCode)) { CUSTOMERS[c] = set.size; total += set.size; }
       const applied = applyCustomerCols();
       if (rows.length) { refreshSelectors(); draw(); }
-      $("penWrap").classList.remove("hidden");
       banner(`Loaded ${total} customers across ${Object.keys(CUSTOMERS).length} zips/FSAs${applied ? "" : " (none match the current report)"}.`);
     },
     error: () => banner("Could not read that file. Is it a valid CSV?")
