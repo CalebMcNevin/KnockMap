@@ -13,6 +13,16 @@ How to use:
 That's it. Nothing is uploaded anywhere -- the report is read
 directly in your browser and never leaves your computer.
 
+Where your data lives:
+- Everything (last report, settings, permit records) is stored in
+  this browser's local storage for this copy of the map. It survives
+  reloads and restarts, but clearing browsing or site data deletes it,
+  and a copy opened from a different address (this folder vs a hosted
+  website) keeps a separate set.
+- Permit records are the only hand-typed data: use the Permits
+  dialog's "Export JSON" to back them up or move them to another
+  computer.
+
 Tips:
 - Pick a metric from the dropdown next to the title; the map recolors.
 - Click any zip/FSA for the full row of numbers.

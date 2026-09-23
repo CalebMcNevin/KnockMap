@@ -42,6 +42,15 @@
   header .spacer { flex: 1; }
   header .row2 { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
   #uploadsGrp { display: flex; align-items: center; gap: 10px; }
+  #permGrp { display: flex; align-items: center; gap: 8px; }
+  #viewSeg { display: inline-flex; border: 1px solid var(--wm-neutral-200); border-radius: var(--radius-sm); overflow: hidden; }
+  #viewSeg button { border: none; border-radius: 0; padding: 5px 12px; font-size: 13.5px; color: var(--wm-gray-700); }
+  #viewSeg button:hover { border: none; background: var(--wm-neutral-50); }
+  #viewSeg button.on { background: var(--wm-green-500); color: #fff; }
+  #viewSeg button.on:hover { background: var(--wm-green-600); }
+  #permitActWrap { display: flex; align-items: center; gap: 6px; }
+  #permitActWrap .lbl { flex: none; }
+  #permitAct { padding: 5px 8px; font-size: 13.5px; }
   header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; margin: 0; color: var(--wm-green-700); }
   header label { display: flex; align-items: center; gap: 6px; }
 
@@ -81,7 +90,7 @@
 
   /* primary control: the emphasized metric selector */
   #metricWrap { gap: 10px; }
-  #metricWrap .lbl {
+  #metricWrap .lbl, #permitActWrap .lbl {
     font: 600 11px/1.2 "DM Sans", Inter, ui-sans-serif, sans-serif;
     color: var(--wm-green-700); text-transform: uppercase; letter-spacing: .07em;
   }
@@ -212,17 +221,27 @@
   #legend .sw i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
   #permitLegend b { display: block; margin-bottom: 2px; }
   dialog#permitDialog .frow { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+  dialog#permitDialog[open] { z-index: 1200; inset-block: 0; margin-block: auto; max-height: calc(100vh - 16px); overflow: auto; } /* non-modal: floats above the map panes/popups so the map stays usable; UA only auto-centers horizontally, inset-block + margin-block add the vertical half */
+  dialog#permitDialog h2 { cursor: move; } /* the heading is the drag handle */
   dialog#permitDialog .frow > span { color: var(--wm-gray-700); font-size: 13px; min-width: 118px; text-align: right; }
   dialog#permitDialog input[type="text"], dialog#permitDialog input[type="url"], dialog#permitDialog input[type="date"], dialog#permitDialog select {
     flex: 1; min-width: 0; font: inherit; font-size: 14px; padding: 5px 8px;
     border: 1px solid var(--wm-neutral-200); border-radius: var(--radius-sm);
   }
   dialog#permitDialog .frow label { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--wm-gray-700); white-space: nowrap; }
+  dialog#permitDialog .q { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; margin-left: 3px; border-radius: 50%; background: var(--wm-neutral-200); color: var(--wm-gray-700); font-size: 10px; font-weight: 700; cursor: help; flex: none; }
   #permitList { max-height: 130px; overflow: auto; border: 1px solid var(--wm-neutral-100); border-radius: var(--radius-sm); margin: 8px 0; }
   #permitList:empty { display: none; }
   #permitList div { padding: 4px 10px; cursor: pointer; font-size: 14px; }
   #permitList div:hover { background: var(--wm-neutral-50); }
+  #permitList div.sel { background: var(--wm-green-100); }
+  #permitList div.sel:hover { background: var(--wm-green-200); }
   #permitList i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; }
+  #permitCloseDialog form { display: flex; gap: 8px; justify-content: flex-end; }
+  #permitCloseDialog button[value="save"] { background: var(--wm-green-500); border-color: var(--wm-green-500); color: #fff; }
+  #permitCloseDialog button[value="save"]:hover { background: var(--wm-green-600); border-color: var(--wm-green-600); color: #fff; }
+  #permitSave.hot { background: var(--wm-orange-500); border-color: var(--wm-orange-500); color: var(--wm-green-900); font-weight: 700; }
+  #permitSave.hot:hover { background: var(--wm-orange-400); border-color: var(--wm-orange-400); color: var(--wm-green-900); }
   dialog.dlg {
     border: 1px solid var(--wm-neutral-200); border-radius: var(--radius);
     box-shadow: var(--shadow-md); padding: 20px; max-width: 560px;
@@ -270,7 +289,7 @@
     <span class="spacer"></span>
     <span id="uploadsGrp">
       <label id="uploadAgain">↻ New CSV <input type="file" id="file" accept=".csv,text/csv" class="hidden"></label>
-      <label id="custUpload" title="Optional: customer list CSV (needs a SERVICEPOSTALZIP column). Adds Customers and Customer Penetration % per zip/FSA.">Customers <input type="file" id="custFile" accept=".csv,text/csv" class="hidden"></label>
+      <label id="custUpload" class="hidden" title="Optional: customer list CSV (needs a SERVICEPOSTALZIP column). Adds Customers and Customer Penetration % per zip/FSA.">Customers <input type="file" id="custFile" accept=".csv,text/csv" class="hidden"></label>
       <button id="helpBtn" class="icon" title="How to export the report CSV from WEMMS">?</button>
     </span>
   </div>
@@ -281,6 +300,19 @@
     </label>
     <span id="summary"></span>
     <span class="spacer"></span>
+    <span id="permGrp" title="Switch between metric results and permit-status coloring">
+      <span id="viewSeg">
+        <button id="viewResBtn" type="button" class="on">Results</button><button id="viewPermBtn" type="button">Permits</button>
+      </span>
+      <span id="permitActWrap" class="hidden">
+        <span class="lbl">Permit type</span>
+        <select id="permitAct" title="Which permit rule colors the map: knock (D2D) or door hanger (flyer) requirements">
+          <option value="d2d">Knocking</option>
+          <option value="flyer">Door Hangers</option>
+        </select>
+      </span>
+      <button id="permitsBtn" title="Track permit requirements per zip/FSA">Permits</button>
+    </span>
     <button id="settingsBtn" class="hidden" popovertarget="settingsPanel" title="Map display options">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       Settings
@@ -329,32 +361,42 @@
     <button id="permitNewBtn">New record</button>
     <button id="permitImportBtn" title="Merge permit records from a dkm-permits.json export">Import JSON</button>
     <button id="permitExportBtn" title="Save all records to a file you can share or import on another computer">Export JSON</button>
+    <button id="permitCsvBtn" title="Save all records as a spreadsheet-friendly CSV">Export CSV</button>
     <input type="file" id="permitFile" accept=".json,application/json" class="hidden">
   </div>
-  <p class="fine" style="margin:10px 0">Records live in this browser only. Export to move them to another computer.
+  <p class="fine" style="margin:10px 0">Records save automatically to this browser's local storage and survive reloads and restarts. They are lost if browsing or site data is cleared, a private window closes, or the map is opened from a different address (the website, localhost, and a local file each keep separate records). Export JSON to back up.
     A zip/FSA is not a legal jurisdiction: keep the jurisdiction field pointing at the city or county whose rule this is.</p>
   <hr style="border:none;border-top:1px solid var(--wm-neutral-100);margin:12px 0">
-  <div class="frow"><span>Zips / FSAs</span><input type="text" id="pCode" placeholder="90210, 90211, 90212" title="One or more codes, separated by commas or spaces"></div>
-  <div class="frow"><span>D2D canvassing</span>
+  <div class="frow"><span>Zips / FSAs<span class="q" title="One or more zip / FSA codes, separated by commas or spaces. They all share this one rule.">?</span></span><input type="text" id="pCode" placeholder="90210, 90211, 90212" title="One or more codes, separated by commas or spaces"></div>
+  <div class="frow"><span>Knocks</span>
     <select id="pD2d"><option value="unknown">Unknown</option><option value="none">No permit needed</option><option value="permit">Permit required</option><option value="conditional">Conditional</option><option value="prohibited">Prohibited</option></select>
     <label><input type="checkbox" id="pGotD2d"> obtained</label></div>
-  <div class="frow"><span>Flyers / hangers</span>
+  <div class="frow"><span>Door Hangers</span>
     <select id="pFlyer"><option value="unknown">Unknown</option><option value="none">No permit needed</option><option value="permit">Permit required</option><option value="conditional">Conditional</option><option value="prohibited">Prohibited</option></select>
     <label><input type="checkbox" id="pGotFlyer"> obtained</label></div>
-  <div class="frow"><span>Jurisdiction</span><input type="text" id="pJur" placeholder="City of Example / Example County (unincorporated)"></div>
+  <div class="frow"><span>Jurisdiction<span class="q" title="The city or county whose rule this is. Zip / FSA is only a proxy for the legal authority.">?</span></span><input type="text" id="pJur" placeholder="City of Example / Example County (unincorporated)"></div>
   <div class="frow"><span>Allowed hours</span><input type="text" id="pHours" placeholder="9:00 AM to 7:00 PM"></div>
-  <div class="frow"><span>Individual fee</span><input type="text" id="pFeeIndiv" placeholder="$50 per person, annual"></div>
-  <div class="frow"><span>Business fee</span><input type="text" id="pFeeBiz" placeholder="$100 annual"></div>
-  <div class="frow"><span>Processing</span><input type="text" id="pProc" placeholder="2-3 weeks"></div>
-  <div class="frow"><span>Application URL</span><input type="url" id="pAppUrl" placeholder="https://"></div>
+  <div class="frow"><span>Individual fee<span class="q" title="Per-person permit cost, e.g. $50 per person, annual.">?</span></span><input type="text" id="pFeeIndiv" placeholder="$50 per person, annual"></div>
+  <div class="frow"><span>Business fee<span class="q" title="Company-level permit cost, e.g. $100 annual.">?</span></span><input type="text" id="pFeeBiz" placeholder="$100 annual"></div>
+  <div class="frow"><span>Processing<span class="q" title="How long approval takes.">?</span></span><input type="text" id="pProc" placeholder="2-3 weeks"></div>
+  <div class="frow"><span>Application URL<span class="q" title="Where to apply: the city's application form or permit portal.">?</span></span><input type="url" id="pAppUrl" placeholder="https://"></div>
   <div class="frow"><span>Notes</span><input type="text" id="pNotes"></div>
-  <div class="frow"><span>Source URL</span><input type="url" id="pSource" placeholder="https://"></div>
-  <div class="frow"><span>Last verified</span><input type="date" id="pVerified"></div>
+  <div class="frow"><span>Source URL<span class="q" title="Where the rule is documented: the municipal code or official page citing this requirement.">?</span></span><input type="url" id="pSource" placeholder="https://"></div>
+  <div class="frow"><span>Last verified<span class="q" title="Date you last confirmed this record is still accurate.">?</span></span><input type="date" id="pVerified"></div>
   <div style="margin-top:12px">
     <button id="permitSave">Save</button>
     <button id="permitDelete" class="hidden">Delete record</button>
     <button id="permitClose">Close</button>
   </div>
+</dialog>
+<dialog id="permitCloseDialog" class="dlg" style="max-width:360px">
+  <h2>Unsaved changes</h2>
+  <p style="margin:0 0 14px">Save changes to this permit record before closing?</p>
+  <form method="dialog">
+    <button value="cancel">Cancel</button>
+    <button value="discard">Discard</button>
+    <button value="save">Save</button>
+  </form>
 </dialog>
 <div id="settingsPanel" popover>
   <b class="ph">Map options</b>
@@ -381,14 +423,7 @@
       <input type="number" id="filterIn" step="any" placeholder="any" style="width:70px" title="Hide rows below this threshold (junk / low-significance data), also excluded from the color scale">
     </span>
   </div>
-  <label class="chk" title="Recolor areas by permit requirement instead of the selected metric"><input type="checkbox" id="permitOn"> Permit status overlay</label>
-  <div class="row hidden" id="permitActWrap"><span>Permit type</span>
-    <select id="permitAct">
-      <option value="d2d">D2D canvassing</option>
-      <option value="flyer">Flyers / hangers</option>
-    </select>
-  </div>
-  <div class="row" title="Denominator for Customer Penetration %: census occupied dwellings, or the homes (addresses) counted in the report itself"><span>Penetration vs</span>
+  <div class="row hidden" title="Denominator for Customer Penetration %: census occupied dwellings, or the homes (addresses) counted in the report itself"><span>Penetration vs</span>
     <select id="penDen">
       <option value="census">Census homes</option>
       <option value="homes">WEMMS Homes</option>
@@ -396,7 +431,6 @@
   </div>
   <hr>
   <div class="foot">
-    <button id="permitsBtn" title="Track permit requirements per zip/FSA">Permits</button>
     <button id="sourcesBtn" title="Boundary, housing-count and basemap sources & dates">Data sources</button>
   </div>
 </div>
@@ -610,6 +644,7 @@ const permitRec = code => PERMITS[permitIdx[code]] || null;
 const PERMIT_LABEL = { none: "No permit needed", permit: "Permit required", conditional: "Conditional", prohibited: "Prohibited", unknown: "Unknown" };
 // canvas can't use CSS vars: hardcode the brand hexes (green-500 / orange-500 / error / neutral-400)
 const PERMIT_COLORS = { none: "#00653A", permit: "#F2BB2A", conditional: "#F2BB2A", prohibited: "#DC2626", unknown: "#7A9189" };
+const PERMIT_SEL_STROKE = "#111827"; // selected record's shapes on the map (ink: reads against every categorical fill)
 const permitStatus = (code, act) => { const r = permitRec(code); return r && PERMIT_LABEL[r[act]] !== undefined ? r[act] : "unknown"; };
 const permitFill = (code, act) => PERMIT_COLORS[permitStatus(code, act)];
 function optgroupHtml(cols, selected) {
@@ -802,7 +837,9 @@ function applyControls() {
   const fOpts = $("filterCol");
   fOpts.value = [...fOpts.options].some(o => o.value === fCol) ? fCol : "";
   $("filterIn").value = p && p.fVal != null ? p.fVal : (fOpts.value === "KnockCount" ? "20" : "");
-  $("permitOn").checked = p ? !!p.pOn : false;
+  PERMIT_VIEW = p ? !!p.pOn : false;
+  $("viewResBtn").classList.toggle("on", !PERMIT_VIEW);
+  $("viewPermBtn").classList.toggle("on", PERMIT_VIEW);
   $("permitAct").value = p && p.pAct === "flyer" ? "flyer" : "d2d";
   $("penDen").value = p && p.pDen === "homes" ? "homes" : "census";
   syncPermitAct();
@@ -812,7 +849,7 @@ function savePrefs() {
     localStorage.setItem("dkm-prefs", JSON.stringify({
       metric: metricCol, scale: $("scaleMode").value, log: $("logMode").value,
       fCol: $("filterCol").value, fVal: $("filterIn").value,
-      pins: [...pinned], pOn: $("permitOn").checked, pAct: $("permitAct").value, pDen: $("penDen").value,
+      pins: [...pinned], pOn: PERMIT_VIEW, pAct: $("permitAct").value, pDen: $("penDen").value,
       tourDone: TOUR_DONE,
       mv: [map.getCenter().lat, map.getCenter().lng, map.getZoom()] // map view follows along
     }));
@@ -824,11 +861,11 @@ function savePrefs() {
 // veil/spot/card are popovers shown after #settingsPanel so the top layer stacks them above it
 const TOUR = [
   { ti: "Your season on one map", b: "Every zip and FSA you knocked is right here, colored by results. Spot your best markets in seconds, then dig into any area that catches your eye." },
-  { t: "#uploadsGrp", ti: "Bring in your data", b: "New CSV loads any WEMMS report. Add a customer list (a CSV with SERVICEPOSTALZIP) to unlock customer counts and Customer Penetration % for every area. The ? button explains how to export the report from WEMMS." },
+  { t: "#uploadsGrp", ti: "Bring in your data", b: "New CSV loads any WEMMS report and the map builds itself: boundaries, home counts, every metric. The ? button walks you through exporting the report, step by step." },
   { t: "#metricWrap", ti: "One dropdown runs the show", b: "Pick any metric and the whole map recolors instantly: sales, knocks, close rates, whatever drives your decisions. Colors, sizes and popups all follow along." },
   { t: "#map", ti: "Click any area for the full story", b: "Hotspots and gaps jump out at a glance. Click a zip / FSA for its complete numbers, scroll to zoom, drag to pan." },
-  { t: "#settingsPanel", panel: true, ti: "Make the map yours", b: "The Settings button (top right) opens this panel: color scales that keep outliers from washing out the map, log scales for skewed data, a filter for low-activity areas, the permit overlay, and penetration." },
-  { t: "#settingsPanel .foot", panel: true, ti: "Know before you knock", b: "Permits tracks D2D and flyer rules by jurisdiction, right in this browser and shareable as JSON. The Permit status overlay recolors the map to show clear, conditional, and prohibited areas at a glance." },
+  { t: "#settingsPanel", panel: true, ti: "Make the map yours", b: "The Settings button (top right) opens this panel: color scales that keep outliers from washing out the map, log scales for skewed data, and a filter that drops low-activity areas." },
+  { t: "#permGrp", ti: "Know before you knock", b: "Flip to the Permits view to recolor the map by requirement: clear, conditional, or prohibited at a glance. The Permits button opens the rule tracker for every jurisdiction, shareable as JSON." },
   { t: "#tourBtn", ti: "Your compass home", b: "Click any area to dig into its numbers. And whenever you want this walkthrough again, the compass button brings it right back." }
 ];
 let tourI = -1, tourPanel = false, TOUR_DONE = false;
@@ -893,6 +930,7 @@ addEventListener("resize", tourPlace);
 addEventListener("scroll", tourPlace, true);
 
 // ---- optional customer list (every row = one current customer) ----
+const CUSTOMERS_ENABLED = false; // launch: customer CSV upload hidden (button, penetration picker, stash restore); flip to true to re-enable
 let CUSTOMERS = null; // code -> unique customer count; null until a customer CSV loads
 function applyCustomerCols() {
   if (!CUSTOMERS || !rows.length) return false;
@@ -909,6 +947,7 @@ function applyCustomerCols() {
   return added.size > 0;
 }
 $("custFile").addEventListener("change", e => {
+  if (!CUSTOMERS_ENABLED) return;
   const f = e.target.files[0];
   if (!f) { e.target.value = ""; return; }
   const input = e.target;
@@ -984,11 +1023,15 @@ function draw() {
     return logOn ? Math.log1p(x - lo) / Math.log1p(hi - lo) : (x - lo) / (hi - lo);
   };
   const haveBounds = typeof BOUNDARIES !== "undefined";
-  const permitMode = $("permitOn").checked, permitAct = $("permitAct").value;
+  const permitMode = PERMIT_VIEW, permitAct = $("permitAct").value;
   const tipTxt = r => permitMode
     ? `${r.code} · ${PERMIT_LABEL[permitStatus(r.code, permitAct)]}${permitRec(r.code) ? "" : " (no record)"}`
     : `${r.code} · ${esc(dispName(metricCol))}: ${fmtM(metricCol, r.vals[metricCol])}`;
   const bounds = L.latLngBounds();
+  const hoverGrp = {}; // permit view: every shape sharing a permit record highlights together on hover
+  const hl = (els, on) => els.forEach(el => el.setStyle(on // ...el.base keeps the selection stroke while boosting
+    ? { ...el.base, weight: el instanceof L.CircleMarker ? 3 : 2.5, fillOpacity: 0.85 }
+    : el.base));
 
   function tOf(r) {
     const v = r.vals[metricCol];
@@ -998,27 +1041,34 @@ function draw() {
   for (const r of shown) {
     const t = tOf(r);
     const fill = permitMode ? permitFill(r.code, permitAct) : t == null ? "#7A9189" : heat(t); // permit overlay: categorical, not the ramp
+    const grp = permitMode && (hoverGrp[permitIdx[r.code] || "solo:" + r.code] = hoverGrp[permitIdx[r.code] || "solo:" + r.code] || []);
+    const selRec = permitSel && PERMITS[permitSel];
+    const isSel = !!(selRec && selRec.codes.includes(r.code));
     const polys = haveBounds && BOUNDARIES[r.code];
     if (polys) {
       // one multipolygon layer per code (poly = [outer, holes...]): all disjoint parts hover/highlight together
-      const style = { color: "#7A9189", weight: 0.75, fillColor: fill, fillOpacity: 0.55 }; // wm-neutral-400 stroke
+      const style = { color: isSel ? PERMIT_SEL_STROKE : "#7A9189", weight: isSel ? 3 : 0.75, fillColor: fill, fillOpacity: isSel ? 0.8 : 0.55 }; // wm-neutral-400 stroke
       const p = L.polygon(polys, style)
         .bindTooltip(tipTxt(r), { sticky: true })
         .bindPopup(() => popupHtml(r), { maxWidth: 420 }) // function, not string: rebuilt fresh on every open so pins apply globally
-        .on("mouseover", e => e.target.setStyle({ weight: 2.5, fillOpacity: 0.85 })) // area highlight, not just edge: complicated shapes need the fill to pop
-        .on("mouseout", e => e.target.setStyle({ weight: 0.75, fillOpacity: 0.55 }))
+        .on("mouseover", grp ? () => hl(grp, true) : e => e.target.setStyle({ ...e.target.base, weight: 2.5, fillOpacity: 0.85 })) // area highlight, not just edge: complicated shapes need the fill to pop
+        .on("mouseout", grp ? () => hl(grp, false) : e => e.target.setStyle(e.target.base))
         .addTo(layer);
       p.row = r; // popup re-render on pin toggle needs the row back
+      p.base = style; // hover restore keeps the selection stroke
+      if (grp) grp.push(p);
       bounds.extend(p.getBounds());
     } else if (CENTROIDS[r.code]) {
       const cm = L.circleMarker(CENTROIDS[r.code], {
         radius: 5 + 16 * (t == null ? 0.15 : Math.sqrt(t)),
-        color: fill, weight: 1, fillColor: fill, fillOpacity: 0.55
+        color: isSel ? PERMIT_SEL_STROKE : fill, weight: isSel ? 3 : 1, fillColor: fill, fillOpacity: isSel ? 0.8 : 0.55
       })
         .bindTooltip(tipTxt(r))
         .bindPopup(() => popupHtml(r), { maxWidth: 420 })
         .addTo(layer);
       cm.row = r;
+      cm.base = cm.options;
+      if (grp) { grp.push(cm); cm.on("mouseover", () => hl(grp, true)).on("mouseout", () => hl(grp, false)); }
       bounds.extend(CENTROIDS[r.code]);
     }
   }
@@ -1029,7 +1079,7 @@ function draw() {
   $("legendTitle").classList.toggle("hidden", permitMode);
   for (const el of $("legend").querySelectorAll(".bar,.ticks,.none")) el.classList.toggle("hidden", permitMode);
   $("permitLegend").classList.toggle("hidden", !permitMode);
-  if (permitMode) $("permitLegendTitle").textContent = `Permits: ${permitAct === "d2d" ? "D2D canvassing" : "Flyers / hangers"}`;
+  if (permitMode) $("permitLegendTitle").textContent = `Permits: ${permitAct === "d2d" ? "Knocks" : "Door Hangers"}`;
 
   // rows that can never draw: no boundary polygon and no centroid (typos, retired codes).
   // Centroid-less codes WITH a polygon (L3L, R5J.., S7A.. -- missing from GeoNames) still draw.
@@ -1067,7 +1117,10 @@ function cellVal(k, v) { // dirty data: clamp very long values (e.g. CityList) b
     : `<b>${esc(shown)}</b>`;
 }
 function popupHtml(r) {
-  const title = `<b style="font-size:15px">${r.code}</b>`;
+  const pr = permitRec(r.code);
+  // no record: no Permits table section, just a quiet Add button in the popup's top-right corner
+  const title = `<div style="display:flex;align-items:center;gap:8px"><b style="font-size:15px;flex:1">${r.code}</b>` +
+    (pr ? "" : `<button class="pedit" style="font-size:11px;padding:1px 8px">Add permit requirement</button>`) + `</div>`;
   const pinBtn = k => `<span class="pin${pinned.has(k) ? " on" : ""}" data-m="${esc(k)}" title="${pinned.has(k) ? "Unpin" : "Pin"}">📌</span>`;
   const rowHtml = ([k, v]) => `<tr><td>${esc(dispName(k))}${pinBtn(k)}</td><td>${cellVal(k, v)}</td></tr>`;
   const groups = {};
@@ -1086,13 +1139,11 @@ function popupHtml(r) {
     return `<tr class="gh"><td colspan="2">${g}</td></tr>` +
       groups[g].map(rowHtml).join("");
   }).join("");
-  const pr = permitRec(r.code);
-  const link = (u, txt) => u ? ` <a href="${esc(u)}" target="_blank" rel="noopener">${esc(txt || u.replace(/^https?:\/\//, "").slice(0, 40))}</a>` : "";
-  const got = (st, on, key) => ["permit", "conditional"].includes(st) // obtaining only applies when a permit is actually required
+  const link = (u, txt) => u ? ` <a href="${esc(u)}" target="_blank" rel="noopener">${esc(txt || u.replace(/^https?:\/\//, "").slice(0, 40))}</a>` : "";  const got = (st, on, key) => ["permit", "conditional"].includes(st) // obtaining only applies when a permit is actually required
     ? ` <input type="checkbox" class="got" title="Permit obtained"${on ? " checked" : ""} data-g="${key}">` : "";
   const permitSection = pr ? `<tr class="gh"><td colspan="2">Permits <button class="pedit" style="font-size:11px;padding:1px 8px">Edit</button></td></tr>` +
-    `<tr><td>D2D canvassing</td><td>${PERMIT_LABEL[pr.d2d] || "Unknown"}${got(pr.d2d, pr.gotD2d, "d2d")}</td></tr>` +
-    `<tr><td>Flyers / hangers</td><td>${PERMIT_LABEL[pr.flyer] || "Unknown"}${got(pr.flyer, pr.gotFlyer, "flyer")}</td></tr>` +
+    `<tr><td>Knocks</td><td>${PERMIT_LABEL[pr.d2d] || "Unknown"}${got(pr.d2d, pr.gotD2d, "d2d")}</td></tr>` +
+    `<tr><td>Door Hangers</td><td>${PERMIT_LABEL[pr.flyer] || "Unknown"}${got(pr.flyer, pr.gotFlyer, "flyer")}</td></tr>` +
     (pr.jurisdiction ? `<tr><td>Jurisdiction</td><td>${esc(pr.jurisdiction)}</td></tr>` : "") +
     (pr.hours ? `<tr><td>Hours</td><td>${esc(pr.hours)}</td></tr>` : "") +
     (pr.feeIndiv ? `<tr><td>Individual fee</td><td>${esc(pr.feeIndiv)}</td></tr>` : "") +
@@ -1138,21 +1189,57 @@ function togglePin(m) {
 }
 // permit editor
 let editingCode = null;
-function syncPermitAct() { $("permitActWrap").classList.toggle("hidden", !$("permitOn").checked); }
+let permitSel = null; // record id whose codes get the selection stroke on the map
+let PERMIT_VIEW = false; // true = categorical permit coloring instead of the metric ramp (header Results/Permits toggle)
+function syncPermitAct() { $("permitActWrap").classList.toggle("hidden", !PERMIT_VIEW); }
+function setView(permits) {
+  PERMIT_VIEW = permits;
+  $("viewResBtn").classList.toggle("on", !permits);
+  $("viewPermBtn").classList.toggle("on", permits);
+  syncPermitAct();
+  draw(); // draw's savePrefs persists pOn
+}
+$("viewResBtn").addEventListener("click", () => PERMIT_VIEW && setView(false));
+$("viewPermBtn").addEventListener("click", () => !PERMIT_VIEW && setView(true));
+const PERMIT_FIELDS = [["pJur", "jurisdiction"], ["pHours", "hours"], ["pFeeIndiv", "feeIndiv"], ["pFeeBiz", "feeBiz"], ["pProc", "processing"], ["pAppUrl", "appUrl"], ["pNotes", "notes"], ["pSource", "source"], ["pVerified", "verified"]];
 function renderPermitList() {
   $("permitList").innerHTML = Object.entries(PERMITS).sort((a, b) => (a[1].jurisdiction || "").localeCompare(b[1].jurisdiction || "")).map(([id, r]) =>
-    `<div data-i="${esc(id)}"><i style="background:${PERMIT_COLORS[r.d2d] || "#7A9189"}"></i><b>${esc(r.codes.join(", "))}</b> — ${esc(r.jurisdiction || "no jurisdiction set")}</div>`).join("");
+    `<div${id === editingCode ? ' class="sel"' : ""} data-i="${esc(id)}"><i style="background:${PERMIT_COLORS[r.d2d] || "#7A9189"}"></i><b>${esc(r.codes.join(", "))}</b> — ${esc(r.jurisdiction || "no jurisdiction set")}</div>`).join("");
+}
+function permitFormState() { // the form exactly as Save would store it (codes normalized + sorted)
+  const s = {
+    codes: $("pCode").value.toUpperCase().split(/[\s,;]+/).filter(Boolean).sort().join(","),
+    d2d: $("pD2d").value, flyer: $("pFlyer").value,
+    gotD2d: $("pGotD2d").checked, gotFlyer: $("pGotFlyer").checked,
+  };
+  for (const [el, k] of PERMIT_FIELDS) s[k] = $(el).value.trim();
+  return s;
+}
+function syncPermitSave() { // Save lights up while the form differs from the stored record (or a new one has content)
+  const cur = permitFormState();
+  const p = PERMITS[editingCode];
+  // ref defaults every missing key like loadPermitForm does: imported/legacy records without optional keys must not read as dirty
+  const ref = p
+    ? { codes: [...p.codes].sort().join(","), d2d: p.d2d || "unknown", flyer: p.flyer || "unknown",
+        gotD2d: !!p.gotD2d, gotFlyer: !!p.gotFlyer, jurisdiction: p.jurisdiction || "", hours: p.hours || "",
+        feeIndiv: p.feeIndiv || "", feeBiz: p.feeBiz || "", processing: p.processing || "", appUrl: p.appUrl || "",
+        notes: p.notes || "", source: p.source || "", verified: p.verified || "" }
+    : { codes: "", d2d: "unknown", flyer: "unknown", gotD2d: false, gotFlyer: false, jurisdiction: "", hours: "", feeIndiv: "", feeBiz: "", processing: "", appUrl: "", notes: "", source: "", verified: "" };
+  $("permitSave").classList.toggle("hot", Object.keys(cur).some(k => cur[k] !== ref[k]));
 }
 function loadPermitForm(id) {
   editingCode = id || null; // record id (null = new)
+  permitSel = editingCode;
   const p = PERMITS[id] || {};
   $("pCode").value = (p.codes || []).join(", ");
   $("pD2d").value = p.d2d || "unknown"; $("pFlyer").value = p.flyer || "unknown";
   $("pGotD2d").checked = !!p.gotD2d; $("pGotFlyer").checked = !!p.gotFlyer;
-  for (const [id, k] of [["pJur", "jurisdiction"], ["pHours", "hours"], ["pFeeIndiv", "feeIndiv"], ["pFeeBiz", "feeBiz"], ["pProc", "processing"], ["pAppUrl", "appUrl"], ["pNotes", "notes"], ["pSource", "source"], ["pVerified", "verified"]])
-    $(id).value = p[k] || "";
+  for (const [el, k] of PERMIT_FIELDS) $(el).value = p[k] || "";
   $("permitDelete").classList.toggle("hidden", !PERMITS[id]);
   syncGot();
+  renderPermitList(); // keeps the selected highlight and Save state in step with every form load
+  syncPermitSave();
+  if (rows.length) draw(); // restyle map shapes: selected record's codes get the ink stroke
 }
 function syncGot() { // obtained only applies when a permit is actually required
   $("pGotD2d").parentElement.classList.toggle("hidden", !["permit", "conditional"].includes($("pD2d").value));
@@ -1160,17 +1247,29 @@ function syncGot() { // obtained only applies when a permit is actually required
 }
 $("pD2d").addEventListener("change", syncGot);
 $("pFlyer").addEventListener("change", syncGot);
+let permitNext = null; // action queued behind the unsaved-changes dialog (close, switch record, new record)
+function permitGuard(next) { // resolve unsaved form changes, then run next()
+  if (!$("permitSave").classList.contains("hot")) return next();
+  permitNext = next;
+  $("permitCloseDialog").showModal();
+}
 function openPermitEditor(code) {
-  renderPermitList(); loadPermitForm(code ? permitIdx[code] || null : null);
+  const id = code ? permitIdx[code] || null : null;
+  const load = () => {
+    loadPermitForm(id);
+    if (code && !id) { $("pCode").value = code; syncPermitSave(); } // popup "Add permit requirement": new record starts with the clicked zip/FSA, Save starts hot
+  };
   const d = $("permitDialog");
-  d.showModal();
+  if (d.open) permitGuard(load); // already open: switching records must resolve pending edits first
+  else load();
+  d.show(); // non-modal: map stays hoverable and clickable; drag the heading to move the dialog aside
   d.querySelector("h2").focus({ preventScroll: true });
 }
 $("permitsBtn").addEventListener("click", () => openPermitEditor(""));
-$("permitNewBtn").addEventListener("click", () => loadPermitForm(""));
-$("permitSave").addEventListener("click", () => {
+$("permitNewBtn").addEventListener("click", () => permitGuard(() => loadPermitForm("")));
+function savePermitForm() {
   const codes = $("pCode").value.toUpperCase().split(/[\s,;]+/).filter(Boolean); // match row-code normalization
-  if (!codes.length) return banner("A permit record needs at least one zip/FSA code.");
+  if (!codes.length) { banner("A permit record needs at least one zip/FSA code."); return false; }
   const id = editingCode || "p" + Date.now().toString(36);
   PERMITS[id] = {
     codes,
@@ -1181,13 +1280,44 @@ $("permitSave").addEventListener("click", () => {
     source: $("pSource").value.trim(), verified: $("pVerified").value,
     gotD2d: $("pGotD2d").checked, gotFlyer: $("pGotFlyer").checked
   };
-  savePermits(); loadPermitForm(id); renderPermitList(); draw();
-});
+  savePermits(); loadPermitForm(id); draw();
+  return true;
+}
+$("permitSave").addEventListener("click", savePermitForm);
 $("permitDelete").addEventListener("click", () => {
-  if (editingCode && PERMITS[editingCode]) { delete PERMITS[editingCode]; savePermits(); loadPermitForm(null); renderPermitList(); draw(); }
+  if (editingCode && PERMITS[editingCode]) { delete PERMITS[editingCode]; savePermits(); loadPermitForm(null); draw(); }
 });
-$("permitClose").addEventListener("click", () => $("permitDialog").close());
-$("permitList").addEventListener("click", e => { const d = e.target.closest("div[data-i]"); if (d) loadPermitForm(d.dataset.i); });
+function maybeClosePermits() { permitGuard(() => $("permitDialog").close()); }
+$("permitCloseDialog").addEventListener("close", () => {
+  const v = $("permitCloseDialog").returnValue, next = permitNext; // save | discard | "" (Esc or backdrop = cancel)
+  permitNext = null;
+  if (v === "save" && !savePermitForm()) { permitNext = next; return; } // invalid codes: fix the form, retry the close/switch
+  if (v === "save" || v === "discard") next && next(); // cancel: pending action dropped
+});
+$("permitClose").addEventListener("click", maybeClosePermits);
+(() => { // drag the non-modal permit dialog by its heading so the map stays visible
+  const d = $("permitDialog");
+  let sx, sy, ox, oy;
+  d.querySelector("h2").addEventListener("mousedown", e => {
+    if (e.button || e.target.closest("button")) return;
+    const r = d.getBoundingClientRect();
+    d.style.left = r.left + "px"; d.style.top = r.top + "px"; d.style.margin = "0"; // pin: UA centers via auto margins
+    sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top;
+    const mv = ev => { // clamped on all four edges: fully on screen whenever the dialog fits
+      const w = d.offsetWidth, h = d.offsetHeight;
+      d.style.left = Math.min(Math.max(0, ox + ev.clientX - sx), Math.max(0, innerWidth - w)) + "px";
+      d.style.top = Math.min(Math.max(0, oy + ev.clientY - sy), Math.max(0, innerHeight - h)) + "px";
+    };
+    const up = () => { removeEventListener("mousemove", mv); removeEventListener("mouseup", up); };
+    addEventListener("mousemove", mv); addEventListener("mouseup", up);
+    e.preventDefault(); // no text selection while dragging
+  });
+  d.addEventListener("close", () => { d.style.left = d.style.top = d.style.margin = ""; }); // drop the drag pin: every open starts centered
+})();
+addEventListener("keydown", e => { if (e.key === "Escape" && $("permitDialog").open && !$("permitCloseDialog").open) maybeClosePermits(); }); // non-modal dialogs get no native Esc
+$("permitDialog").addEventListener("close", () => { if (permitSel) { permitSel = null; if (rows.length) draw(); } }); // dialog closed: drop the map selection stroke
+$("permitDialog").addEventListener("input", syncPermitSave); // any field edit re-checks Save's dirty state
+$("permitList").addEventListener("click", e => { const d = e.target.closest("div[data-i]"); if (d) permitGuard(() => loadPermitForm(d.dataset.i)); });
 $("permitImportBtn").addEventListener("click", () => $("permitFile").click());
 $("permitFile").addEventListener("change", e => {
   const f = e.target.files[0];
@@ -1214,7 +1344,20 @@ $("permitExportBtn").addEventListener("click", () => {
   a.click();
   URL.revokeObjectURL(a.href);
 });
-$("permitOn").addEventListener("change", () => { syncPermitAct(); draw(); });
+$("permitCsvBtn").addEventListener("click", () => { // spreadsheet export: one row per record, codes joined by "; ", human-readable statuses
+  const q = v => { v = String(v ?? ""); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const lines = Object.values(PERMITS).sort((a, b) => (a.jurisdiction || "").localeCompare(b.jurisdiction || "")).map(r =>
+    [(r.codes || []).join("; "), PERMIT_LABEL[r.d2d] || "Unknown", r.gotD2d ? "yes" : "",
+     PERMIT_LABEL[r.flyer] || "Unknown", r.gotFlyer ? "yes" : "",
+     r.jurisdiction || "", r.hours || "", r.feeIndiv || "", r.feeBiz || "", r.processing || "",
+     r.appUrl || "", r.notes || "", r.source || "", r.verified || ""].map(q).join(","));
+  const csv = "Zips/FSAs,Knocks,Knocks obtained,Door Hangers,Door Hangers obtained,Jurisdiction,Allowed hours,Individual fee,Business fee,Processing,Application URL,Notes,Source URL,Last verified\n" + lines.join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  a.download = "dkm-permits.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
 $("permitAct").addEventListener("change", draw);
 document.addEventListener("change", e => { // obtained checkboxes inside popups
   if (!e.target.classList || !e.target.classList.contains("got")) return;
@@ -1240,8 +1383,8 @@ $("helpBtn").addEventListener("click", () => {
   requestAnimationFrame(() => { d.scrollTop = 0; });
 });
 $("helpClose").addEventListener("click", () => $("helpDialog").close());
-// click on the backdrop (the dialog element itself) closes -- same for all dialogs
-for (const d of ["helpDialog", "sourcesDialog", "permitDialog"]) {
+// click on the backdrop (the dialog element itself) closes -- permitDialog has its own guarded version above
+for (const d of ["helpDialog", "sourcesDialog"]) {
   const el = $(d);
   el.addEventListener("click", e => { if (e.target === el) el.close(); });
 }
@@ -1262,6 +1405,7 @@ document.addEventListener("drop", e => {
 });
 
 // restore the last uploaded report + customer list so a reload doesn't lose the session
+try { navigator.storage && navigator.storage.persist(); } catch (e) { /* no-op where unsupported: best-effort guard against storage eviction */ }
 (function restoreUploads() {
   // saved map view (center + zoom) must be read FIRST: parseReport below parses synchronously
   // into draw(), whose savePrefs would otherwise overwrite mv with the boot-default view
@@ -1274,7 +1418,7 @@ document.addEventListener("drop", e => {
   try {
     const rep = JSON.parse(localStorage.getItem("dkm-report") || "null");
     if (rep && rep.text) { parseReport(rep.text, rep.name); restored.push(`report "${rep.name}"`); }
-    const cus = JSON.parse(localStorage.getItem("dkm-customers") || "null");
+    const cus = CUSTOMERS_ENABLED ? JSON.parse(localStorage.getItem("dkm-customers") || "null") : null;
     if (cus && cus.text) { loadCustomersText(cus.text, cus.name); restored.push("customer list"); }
   } catch (e) { /* corrupted stash: start fresh */ }
   if (restored.length) banner(`Restored from this browser: ${restored.join(" and ")}. Upload new files any time.`);
