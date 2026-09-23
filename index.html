@@ -1557,7 +1557,7 @@ $("permitFile").addEventListener("change", e => {
       for (const [k, v] of Object.entries(j)) if (v && typeof v === "object" && Array.isArray(v.codes)) { PERMITS[k] = v; n++; } // merge: import overwrites same record ids
       if (!n) return banner("No permit records found in that file. Expected a file created by the Save button.");
       savePermits(); renderPermitList(); draw();
-      banner(`Imported ${n} permit record${n === 1 ? "" : "s"}.`);
+      banner(`Imported ${n} permit record${n === 1 ? "" : "s"}.`, true);
     } catch (err) { banner("Could not read that file as permit JSON."); }
   };
   rd.onerror = () => { reset(); banner("Could not read that file as permit JSON."); };
