@@ -41,6 +41,7 @@
   header .row1 { display: flex; align-items: center; gap: 10px; }
   header .spacer { flex: 1; }
   header .row2 { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+  #uploadsGrp { display: flex; align-items: center; gap: 10px; }
   header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; margin: 0; color: var(--wm-green-700); }
   header label { display: flex; align-items: center; gap: 6px; }
 
@@ -60,10 +61,12 @@
   }
   button:hover { border-color: var(--wm-green-300); }
   button:active { background: var(--wm-neutral-50); }
-  button#helpBtn.icon {
+  button.icon {
     width: 26px; height: 26px; padding: 0; border-radius: 50%;
     font-weight: 600; line-height: 1; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
   }
+  button.icon svg { display: block; }
   input[type="number"] { width: 76px; }
   input[type="number"]::placeholder { color: var(--wm-neutral-300); }
 
@@ -99,6 +102,9 @@
     border-radius: var(--radius); box-shadow: var(--shadow-md); font-size: 14px;
   }
   #settingsPanel:popover-open { display: flex; flex-direction: column; gap: 10px; }
+  #settingsPanel { transition: opacity .2s ease, transform .2s ease, display .2s allow-discrete, overlay .2s allow-discrete; } /* entrance/exit animation; display comes from the UA popover rules */
+  #settingsPanel:not(:popover-open) { opacity: 0; transform: translateY(-8px); }
+  @starting-style { #settingsPanel:popover-open { opacity: 0; transform: translateY(-8px); } }
   #settingsPanel .ph {
     font: 600 11px/1.2 "DM Sans", Inter, ui-sans-serif, sans-serif;
     color: var(--wm-green-700); text-transform: uppercase; letter-spacing: .07em;
@@ -110,6 +116,35 @@
   #settingsPanel hr { border: none; border-top: 1px solid var(--wm-neutral-100); margin: 2px 0; }
   #settingsPanel .foot { display: flex; gap: 8px; }
   #settingsPanel .foot button { font-size: 13px; padding: 5px 10px; }
+
+  /* walkthrough tour: veil blocks input, spot dims around the target, card explains it */
+  #tourVeil { position: fixed; inset: 0; margin: 0; width: 100vw; height: 100vh; background: none; }
+  #tourSpot {
+    position: fixed; margin: 0; right: auto; bottom: auto; background: none;
+    border: 2px solid var(--wm-green-400); border-radius: 10px;
+    box-shadow: 0 0 0 9999px rgba(16, 42, 28, .62); /* the dim; 9999px is the canonical cutout-overlay spread */
+    pointer-events: none; transition: left .18s ease, top .18s ease, width .18s ease, height .18s ease;
+  }
+  #tourCard {
+    position: fixed; margin: 0; right: auto; bottom: auto;
+    width: min(340px, calc(100vw - 24px));
+    background: var(--card); border: 1px solid var(--wm-neutral-200);
+    border-radius: var(--radius); box-shadow: var(--shadow-md);
+    padding: 14px 16px 12px;
+  }
+  #tourCard .cnt {
+    font: 600 11px/1.2 "DM Sans", Inter, ui-sans-serif, sans-serif;
+    color: var(--wm-green-700); text-transform: uppercase; letter-spacing: .07em;
+  }
+  #tourCard h3 { margin: 4px 0 6px; font-size: 16px; font-family: "DM Sans", Inter, ui-sans-serif, sans-serif; }
+  #tourCard p { margin: 0 0 12px; color: var(--wm-gray-700); font-size: 13.5px; min-height: calc(5 * 1.6em); } /* 5 text lines: Back/Next stay anchored no matter the copy length */
+  #tourCard .nav { display: flex; align-items: center; gap: 8px; }
+  #tourCard .nav .spacer { flex: 1; }
+  #tourCard .skip { border: none; background: none; color: var(--wm-neutral-400); font-size: 13px; padding: 4px 6px; }
+  #tourCard .skip:hover { color: var(--wm-gray-700); border-color: transparent; background: none; }
+  #tourCard .go { background: var(--wm-green-500); border-color: var(--wm-green-500); color: #fff; padding: 6px 14px; }
+  #tourCard .go:hover { background: var(--wm-green-600); border-color: var(--wm-green-600); color: #fff; }
+  #tourCard .go:active { background: var(--wm-green-700); border-color: var(--wm-green-700); color: #fff; }
 
   #map { flex: 1; width: 100vw; min-height: 0; background: var(--bg); }
   .hidden { display: none !important; }
@@ -233,9 +268,11 @@
     <h1>DNP Results by FSA/Zip</h1>
     <span id="seasonInfo" class="hidden"></span>
     <span class="spacer"></span>
-    <label id="uploadAgain">↻ New CSV <input type="file" id="file" accept=".csv,text/csv" class="hidden"></label>
-    <label id="custUpload" title="Optional: customer list CSV (needs a SERVICEPOSTALZIP column). Adds Customers and Customer Penetration % per zip/FSA.">Customers <input type="file" id="custFile" accept=".csv,text/csv" class="hidden"></label>
-    <button id="helpBtn" class="icon" title="How to export the report CSV from WEMMS">?</button>
+    <span id="uploadsGrp">
+      <label id="uploadAgain">↻ New CSV <input type="file" id="file" accept=".csv,text/csv" class="hidden"></label>
+      <label id="custUpload" title="Optional: customer list CSV (needs a SERVICEPOSTALZIP column). Adds Customers and Customer Penetration % per zip/FSA.">Customers <input type="file" id="custFile" accept=".csv,text/csv" class="hidden"></label>
+      <button id="helpBtn" class="icon" title="How to export the report CSV from WEMMS">?</button>
+    </span>
   </div>
   <div class="row2">
     <label id="metricWrap" class="hidden" title="Area colors and circle sizes follow this metric">
@@ -247,6 +284,9 @@
     <button id="settingsBtn" class="hidden" popovertarget="settingsPanel" title="Map display options">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       Settings
+    </button>
+    <button id="tourBtn" class="icon hidden" title="Walkthrough of the controls">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
     </button>
   </div>
 </header>
@@ -341,7 +381,6 @@
       <input type="number" id="filterIn" step="any" placeholder="any" style="width:70px" title="Hide rows below this threshold (junk / low-significance data), also excluded from the color scale">
     </span>
   </div>
-  <label class="chk"><input type="checkbox" id="hideZero"> Hide zeros</label>
   <label class="chk" title="Recolor areas by permit requirement instead of the selected metric"><input type="checkbox" id="permitOn"> Permit status overlay</label>
   <div class="row hidden" id="permitActWrap"><span>Permit type</span>
     <select id="permitAct">
@@ -359,6 +398,19 @@
   <div class="foot">
     <button id="permitsBtn" title="Track permit requirements per zip/FSA">Permits</button>
     <button id="sourcesBtn" title="Boundary, housing-count and basemap sources & dates">Data sources</button>
+  </div>
+</div>
+<div id="tourVeil" popover="manual"></div>
+<div id="tourSpot" popover="manual"></div>
+<div id="tourCard" popover="manual">
+  <div class="cnt"></div>
+  <h3></h3>
+  <p></p>
+  <div class="nav">
+    <button class="skip" type="button">Skip tour</button>
+    <span class="spacer"></span>
+    <button id="tourBack" type="button">Back</button>
+    <button id="tourNext" class="go" type="button">Next</button>
   </div>
 </div>
 <div id="banner" class="hidden"></div>
@@ -720,6 +772,8 @@ function loadRows(data, fname) {
   refreshSelectors();
   $("metricWrap").classList.remove("hidden");
   $("settingsBtn").classList.remove("hidden");
+  $("tourBtn").classList.remove("hidden");
+  if (!TOUR_DONE) setTimeout(() => tourStep(0), 400); // first open: walk through the controls
   syncPermitAct();
   $("drop").classList.add("hidden");
 
@@ -748,7 +802,6 @@ function applyControls() {
   const fOpts = $("filterCol");
   fOpts.value = [...fOpts.options].some(o => o.value === fCol) ? fCol : "";
   $("filterIn").value = p && p.fVal != null ? p.fVal : (fOpts.value === "KnockCount" ? "20" : "");
-  $("hideZero").checked = p ? !!p.hideZero : false;
   $("permitOn").checked = p ? !!p.pOn : false;
   $("permitAct").value = p && p.pAct === "flyer" ? "flyer" : "d2d";
   $("penDen").value = p && p.pDen === "homes" ? "homes" : "census";
@@ -758,12 +811,86 @@ function savePrefs() {
   try {
     localStorage.setItem("dkm-prefs", JSON.stringify({
       metric: metricCol, scale: $("scaleMode").value, log: $("logMode").value,
-      fCol: $("filterCol").value, fVal: $("filterIn").value, hideZero: $("hideZero").checked,
+      fCol: $("filterCol").value, fVal: $("filterIn").value,
       pins: [...pinned], pOn: $("permitOn").checked, pAct: $("permitAct").value, pDen: $("penDen").value,
+      tourDone: TOUR_DONE,
       mv: [map.getCenter().lat, map.getCenter().lng, map.getZoom()] // map view follows along
     }));
   } catch (e) { /* storage unavailable: defaults only */ }
 }
+
+// ---- walkthrough tour (auto-runs once after the first CSV; compass button replays it) ----
+// card stays centered; the spot is the dark overlay's cutout over the current control group
+// veil/spot/card are popovers shown after #settingsPanel so the top layer stacks them above it
+const TOUR = [
+  { ti: "Your season on one map", b: "Every zip and FSA you knocked is right here, colored by results. Spot your best markets in seconds, then dig into any area that catches your eye." },
+  { t: "#uploadsGrp", ti: "Bring in your data", b: "New CSV loads any WEMMS report. Add a customer list (a CSV with SERVICEPOSTALZIP) to unlock customer counts and Customer Penetration % for every area. The ? button explains how to export the report from WEMMS." },
+  { t: "#metricWrap", ti: "One dropdown runs the show", b: "Pick any metric and the whole map recolors instantly: sales, knocks, close rates, whatever drives your decisions. Colors, sizes and popups all follow along." },
+  { t: "#map", ti: "Click any area for the full story", b: "Hotspots and gaps jump out at a glance. Click a zip / FSA for its complete numbers, scroll to zoom, drag to pan." },
+  { t: "#settingsPanel", panel: true, ti: "Make the map yours", b: "The Settings button (top right) opens this panel: color scales that keep outliers from washing out the map, log scales for skewed data, a filter for low-activity areas, the permit overlay, and penetration." },
+  { t: "#settingsPanel .foot", panel: true, ti: "Know before you knock", b: "Permits tracks D2D and flyer rules by jurisdiction, right in this browser and shareable as JSON. The Permit status overlay recolors the map to show clear, conditional, and prohibited areas at a glance." },
+  { t: "#tourBtn", ti: "Your compass home", b: "Click any area to dig into its numbers. And whenever you want this walkthrough again, the compass button brings it right back." }
+];
+let tourI = -1, tourPanel = false, TOUR_DONE = false;
+try { TOUR_DONE = !!JSON.parse(localStorage.getItem("dkm-prefs") || "{}").tourDone; } catch (e) { /* file:// quirks */ }
+
+function tourPop(el, show) {
+  if (show && !el.matches(":popover-open")) el.showPopover();
+  else if (!show && el.matches(":popover-open")) el.hidePopover();
+}
+function tourEnd() {
+  if (tourI < 0) return;
+  tourI = -1;
+  ["tourCard", "tourSpot", "tourVeil"].forEach(id => tourPop($(id), false));
+  const panel = $("settingsPanel");
+  tourPop(panel, false);
+  panel.popover = "auto"; // back to normal: click-away closes it outside the tour
+  tourPanel = false;
+  TOUR_DONE = true; savePrefs(); // never auto-run again
+}
+function tourStep(i) {
+  tourI = i;
+  const s = TOUR[i], card = $("tourCard");
+  $("settingsPanel").popover = "manual"; // tour owns the panel: button clicks on the card must not light-dismiss it
+  if (!!s.panel !== tourPanel) { // restack so veil/spot/card paint above the open panel in the top layer
+    ["tourCard", "tourSpot", "tourVeil"].forEach(id => tourPop($(id), false));
+    tourPop($("settingsPanel"), !!s.panel);
+    tourPanel = !!s.panel;
+  }
+  ["tourVeil", "tourSpot", "tourCard"].forEach(id => tourPop($(id), true));
+  card.querySelector(".cnt").textContent = `Step ${i + 1} of ${TOUR.length}`;
+  card.querySelector("h3").textContent = s.ti;
+  card.querySelector("p").textContent = s.b;
+  $("tourBack").disabled = i === 0;
+  $("tourNext").textContent = i === TOUR.length - 1 ? "Done" : "Next";
+  tourPlace();
+  if (s.panel) setTimeout(tourPlace, 220); // re-measure once the entrance animation has finished
+}
+function tourPlace() { // moves the cutout only; the card stays centered on screen
+  if (tourI < 0) return;
+  const s = TOUR[tourI], spot = $("tourSpot"), card = $("tourCard");
+  const el = s.t ? document.querySelector(s.t) : null;
+  if (el) el.scrollIntoView({ block: "center" });
+  const r = el ? el.getBoundingClientRect() : null;
+  if (r && r.width > 0) {
+    spot.style.left = (r.left - 10) + "px"; spot.style.top = (r.top - 10) + "px";
+    spot.style.width = (r.width + 20) + "px"; spot.style.height = (r.height + 20) + "px";
+  } else { // no target: 0x0 spot at center, the shadow still dims the whole screen
+    spot.style.left = innerWidth / 2 + "px"; spot.style.top = innerHeight / 2 + "px";
+    spot.style.width = "0px"; spot.style.height = "0px";
+  }
+  const cw = card.offsetWidth, ch = card.offsetHeight;
+  card.style.left = Math.max(0, (innerWidth - cw) / 2) + "px";
+  card.style.top = Math.max(16, (innerHeight - ch) / 2) + "px";
+}
+$("tourBtn").onclick = () => tourStep(0); // replay the walkthrough
+$("tourNext").onclick = () => tourI >= TOUR.length - 1 ? tourEnd() : tourStep(tourI + 1);
+$("tourBack").onclick = () => tourStep(Math.max(0, tourI - 1));
+$("tourCard").querySelector(".skip").onclick = tourEnd;
+$("tourVeil").onclick = tourEnd; // manual popovers don't light-dismiss: click-away and Esc end the tour ourselves
+addEventListener("keydown", e => { if (e.key === "Escape" && tourI >= 0) tourEnd(); });
+addEventListener("resize", tourPlace);
+addEventListener("scroll", tourPlace, true);
 
 // ---- optional customer list (every row = one current customer) ----
 let CUSTOMERS = null; // code -> unique customer count; null until a customer CSV loads
@@ -826,10 +953,8 @@ function draw() {
   if (layer) layer.remove();
   layer = L.layerGroup().addTo(map);
 
-  const hideZero = $("hideZero").checked;
   const fCol = $("filterCol").value, fVal = parseFloat($("filterIn").value);
   const passes = r =>
-    (!hideZero || r.vals[metricCol] !== 0) &&
     (!fCol || !isFinite(fVal) || (r.vals[fCol] != null && r.vals[fCol] >= fVal));
   const shown = rows.filter(passes);
   const sorted = shown.map(r => r.vals[metricCol]).filter(v => v != null).sort((a, b) => a - b);
@@ -1125,7 +1250,6 @@ $("logMode").addEventListener("change", draw);
 map.on("moveend", () => savePrefs()); // pans and zooms both end in moveend: keep the saved view current
 ["filterCol", "filterIn"].forEach(id => $(id).addEventListener("input", draw));
 ["minIn", "maxIn"].forEach(id => $(id).addEventListener("input", draw));
-$("hideZero").addEventListener("change", draw);
 
 const drop = $("drop");
 ["dragover", "dragenter"].forEach(ev =>
