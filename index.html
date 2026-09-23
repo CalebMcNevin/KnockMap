@@ -80,7 +80,10 @@
   input[type="number"]::placeholder { color: var(--wm-neutral-300); }
 
   #summary { color: var(--wm-gray-700); font-size: 13px; }
-  #summary details { display: inline-block; }
+  #summary details { display: inline-block; position: relative; }
+  #summary details > div { position: absolute; left: 0; top: 100%; margin-top: 4px; z-index: 1560; padding: 6px 10px; border-radius: 6px; background: var(--wm-bg, #fff); border: 1px solid var(--wm-gray-300, #ccc); box-shadow: 0 4px 12px rgba(0,0,0,.15); white-space: pre-wrap; max-width: 280px; max-height: 50vh; overflow: auto; text-align: left; } /* Above toasts (1500) and map popups (1550), below the permit dialog (1600). */
+  #summary #fCount > div { width: max-content; max-width: 400px; } /* abs box shrinks to the ~90px summary otherwise; must out-specify the shared rule's 280px cap; the filter rule reads best on fewer, longer lines */
+  .leaflet-popup-pane { z-index: 1550; } /* raise the PANE, not .leaflet-popup: a z-indexed pane is its own stacking context, so a child z-index never escapes it. 1550 > toasts (1500), < permit dialog (1600) */
   #summary a, #summary summary { color: var(--wm-green-600); }
   #seasonInfo { /* ver-badge pattern from the style guide */
     background: var(--wm-green-100); color: var(--wm-green-800);
@@ -104,9 +107,11 @@
      No display property on the closed state: the UA's display:none must win. */
   #settingsBtn { display: inline-flex; align-items: center; gap: 6px; }
   #settingsBtn svg { flex: none; }
+  body:has(#settingsPanel:popover-open) #settingsBtn { background: var(--wm-green-500); border-color: var(--wm-green-500); color: #fff; } /* stays lit while its panel is open, same treatment as #viewSeg's active half */
+  body:has(#settingsPanel:popover-open) #settingsBtn:hover { background: var(--wm-green-600); border-color: var(--wm-green-600); color: #fff; }
   #settingsPanel {
     position: fixed; top: 104px; right: 16px; left: auto; bottom: auto; margin: 0;
-    width: min(360px, calc(100vw - 32px)); padding: 14px 16px;
+    width: min(440px, calc(100vw - 32px)); padding: 14px 16px;
     background: var(--card); border: 1px solid var(--wm-neutral-200);
     border-radius: var(--radius); box-shadow: var(--shadow-md); font-size: 14px;
   }
@@ -119,6 +124,9 @@
     color: var(--wm-green-700); text-transform: uppercase; letter-spacing: .07em;
   }
   #settingsPanel .row { display: flex; align-items: center; justify-content: space-between; gap: 8px 10px; flex-wrap: wrap; }
+  #settingsPanel #fltRow { flex-direction: column; align-items: flex-start; } /* label on one line, the col + value controls on the next; must out-specify .row's align-items:center */
+  #settingsPanel #fltRow .ctl { flex-wrap: nowrap; } /* col select, >= and value input share the second line */
+  #settingsPanel #fltRow .ctl select { flex: 1 1 auto; min-width: 0; } /* long column names shrink the select, never the input */
   #settingsPanel .row > span:first-child { color: var(--wm-gray-700); }
   #settingsPanel .ctl { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
   #settingsPanel label.chk { display: flex; align-items: center; gap: 6px; }
@@ -133,6 +141,12 @@
     border: 2px solid var(--wm-green-400); border-radius: 10px;
     box-shadow: 0 0 0 9999px rgba(16, 42, 28, .62); /* the dim; 9999px is the canonical cutout-overlay spread */
     pointer-events: none; transition: left .18s ease, top .18s ease, width .18s ease, height .18s ease;
+  }
+  #hlSpot { /* the filtered-out link's glide: same cutout trick as the tour; a dot at the mouse morphs into the filter-row rectangle en route */
+    position: fixed; margin: 0; right: auto; bottom: auto; background: none;
+    border: 2px solid var(--wm-green-400); border-radius: 10px;
+    box-shadow: 0 0 0 9999px rgba(16, 42, 28, .62);
+    pointer-events: none; transition: left .7s cubic-bezier(.45,.05,.2,1), top .7s cubic-bezier(.45,.05,.2,1), width .7s cubic-bezier(.45,.05,.2,1), height .7s cubic-bezier(.45,.05,.2,1), border-radius .7s cubic-bezier(.45,.05,.2,1), opacity .3s ease;
   }
   #tourCard {
     position: fixed; margin: 0; right: auto; bottom: auto;
@@ -231,10 +245,12 @@
   .pin:not(.on) { filter: grayscale(1); } /* hover offers a gray pin; pinned is red */
   #legend .sw { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: var(--wm-gray-700); font-size: 13px; }
   #legend .sw i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  #legend .sw i.hatch { background: repeating-linear-gradient(45deg, #7A9189 0 2px, transparent 2px 6px); border: 1px solid #7A9189; } /* mirrors the canvas stripe pattern for split-jurisdiction codes */
   #permitLegend b { display: block; margin-bottom: 2px; }
   dialog#permitDialog .frow { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
   dialog#permitDialog[open] { z-index: 1600; inset-block: 0; margin-block: auto; max-height: calc(100vh - 16px); overflow: auto; } /* non-modal: floats above the map panes/popups and the toasts; UA only auto-centers horizontally, inset-block + margin-block add the vertical half */
   dialog#permitDialog h2 { cursor: move; } /* the heading is the drag handle */
+  dialog#permitDialog #permitX { position: absolute; top: 8px; right: 8px; }
   dialog#permitDialog .frow > span { color: var(--wm-gray-700); font-size: 13px; min-width: 118px; text-align: right; }
   dialog#permitDialog input[type="text"], dialog#permitDialog input[type="url"], dialog#permitDialog input[type="date"], dialog#permitDialog select {
     flex: 1; min-width: 0; font: inherit; font-size: 14px; padding: 5px 8px;
@@ -251,6 +267,7 @@
     font-size: 12px; font-weight: 400; line-height: 1.45; text-align: left; white-space: normal;
     box-shadow: var(--shadow-md); z-index: 2; pointer-events: none;
   }
+  dialog#permitDialog .q.tipL:hover::after { left: auto; right: calc(100% + 8px); } /* rows near the dialog's right edge: open left, never clipped by the scroll box */
   dialog#permitDialog #pPick { flex: none; font-size: 13px; padding: 6px 10px; }
   dialog#permitDialog #pPick.on { background: var(--wm-green-500); border-color: var(--wm-green-500); color: #fff; }
   #map.picking, #map.picking .leaflet-interactive { cursor: crosshair !important; }
@@ -381,18 +398,18 @@
 </dialog>
 <dialog id="permitDialog" class="dlg" tabindex="-1">
   <h2 tabindex="-1">Permit requirements</h2>
+  <button id="permitX" class="icon" aria-label="Close" title="Close">&#10005;</button>
   <div id="permitList"></div>
   <div>
     <button id="permitNewBtn">New record</button>
-    <button id="permitImportBtn" title="Merge permit records from a dkm-permits.json export">Import JSON</button>
-    <button id="permitExportBtn" title="Save all records to a file you can share or import on another computer">Export JSON</button>
+    <button id="permitExportBtn" title="Save all records to a file you can load here or on another computer">Save</button>
+    <button id="permitImportBtn" title="Merge permit records from a file created by the Save button">Load</button>
+    <span class="q tipL" data-tip="Records save automatically in this browser and survive reloads and restarts. They are lost if browsing data is cleared or a private window closes, and they stay on this computer: use Save to back them up or move them to another computer.">?</span>
     <button id="permitCsvBtn" title="Save all records as a spreadsheet-friendly CSV">Export CSV</button>
     <input type="file" id="permitFile" accept=".json,application/json" class="hidden">
   </div>
-  <p class="fine" style="margin:10px 0">Records save automatically to this browser's local storage and survive reloads and restarts. They are lost if browsing or site data is cleared, a private window closes, or the map is opened from a different address (the website, localhost, and a local file each keep separate records). Export JSON to back up.
-    A zip/FSA is not a legal jurisdiction: keep the jurisdiction field pointing at the city or county whose rule this is.</p>
   <hr style="border:none;border-top:1px solid var(--wm-neutral-100);margin:12px 0">
-  <div class="frow"><span>Zips / FSAs<span class="q" data-tip="One or more zip / FSA codes, separated by commas or spaces. They all share this one rule. Use Pick on map to add codes by clicking areas.">?</span></span><input type="text" id="pCode" placeholder="90210, 90211, 90212" title="One or more codes, separated by commas or spaces"><button id="pPick" type="button" title="Click areas on the map to append their zip / FSA to this record. Click again or press Esc to stop.">Pick on map</button></div>
+  <div class="frow"><span>Zips / FSAs<span class="q" data-tip="One or more zip / FSA codes, separated by commas or spaces. They all share this one rule. Use Pick on map to add codes by clicking areas. A zip/FSA is not a legal jurisdiction: keep the jurisdiction field pointing at the city or county whose rule this is.">?</span></span><input type="text" id="pCode" placeholder="90210, 90211, 90212" title="One or more codes, separated by commas or spaces"><button id="pPick" type="button" title="Click areas on the map to append their zip / FSA to this record. Click again or press Esc to stop.">Pick on map</button></div>
   <div class="frow"><span>Knocks</span>
     <select id="pD2d"><option value="unknown">Unknown</option><option value="none">No permit needed</option><option value="permit">Permit required</option><option value="conditional">Conditional</option><option value="prohibited">Prohibited</option></select>
     <label><input type="checkbox" id="pGotD2d"> obtained</label></div>
@@ -443,7 +460,7 @@
       <option value="auto">auto</option><option value="on">on</option><option value="off">off</option>
     </select>
   </div>
-  <div class="row"><span>Filter</span>
+  <div class="row" id="fltRow"><span>Filter</span>
     <span class="ctl"><select id="filterCol"></select> ≥
       <input type="number" id="filterIn" step="any" placeholder="any" style="width:70px" title="Hide rows below this threshold (junk / low-significance data), also excluded from the color scale">
     </span>
@@ -478,6 +495,7 @@
     <button id="tourNext" class="go" type="button">Next</button>
   </div>
 </div>
+<div id="hlSpot" popover="manual"></div>
 <div id="map"></div>
 <div id="legend" class="hidden">
   <b id="legendTitle"></b>
@@ -490,6 +508,7 @@
     <div class="sw"><i style="background:#F2BB2A"></i> permit / conditional</div>
     <div class="sw"><i style="background:#DC2626"></i> prohibited</div>
     <div class="sw"><i style="background:#7A9189"></i> unknown / no record</div>
+    <div class="sw"><i class="hatch"></i> multiple rules (split)</div>
   </div>
 </div>
 <div id="drop">
@@ -504,6 +523,15 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const map = L.map("map", { zoomControl: true, preferCanvas: true });
+(() => { // popups must clear the toasts (1500) and sit under the permit dialog (1600); the map pane's
+  // persistent transform seals every child pane in a z-400 stacking context, so no z-index inside can
+  // beat the toasts. Lift the popup pane out to the container (no transform there) and mirror the map
+  // pane's transform on every view change so popup positions stay anchored.
+  const pPane = map.getPanes().popupPane;
+  map.getContainer().appendChild(pPane);
+  const sync = () => { pPane.style.transform = map.getPanes().mapPane.style.transform; };
+  map.on("move zoom viewreset", sync); sync();
+})();
 // Esri light gray canvas: free, no API key, no Referer requirement (CARTO now demands keys, OSM blocks file://)
 L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
   maxZoom: 16, attribution: "Tiles &copy; Esri"
@@ -528,6 +556,7 @@ function ensureBoundaries() {
   s.onerror = () => {
     boundaryState = "failed"; const b = $("bndLoad"); if (b) b.remove();
     banner("Boundary file (boundaries.js) not found next to index.html: showing circles instead.");
+    draw(); // suppressed circles appear now that we know there are no polygons
   };
   document.head.appendChild(s);
 }
@@ -704,6 +733,25 @@ const PERMIT_COLORS = { none: "#00653A", permit: "#F2BB2A", conditional: "#F2BB2
 const PERMIT_SEL_STROKE = "#111827"; // selected record's shapes on the map (ink: reads against every categorical fill)
 const permitStatus = (code, act) => { const r = permitRec(code); return r && PERMIT_LABEL[r[act]] !== undefined ? r[act] : "unknown"; };
 const permitFill = (code, act) => PERMIT_COLORS[permitStatus(code, act)];
+const claimIds = code => { // every record claiming this code; the form draft replaces the record being edited, never double-counts it
+  const ids = new Set();
+  for (const [id, r] of Object.entries(PERMITS)) if (r && Array.isArray(r.codes) && r.codes.includes(code) && id !== LIVE_ID) ids.add(id);
+  if (LIVE_REC && LIVE_REC.codes.includes(code)) ids.add(LIVE_ID);
+  return [...ids];
+};
+const permitSplit = code => claimIds(code).length > 1; // >1 rule claims this code (a zip split across townships etc.): render it hatched
+const HATCH = {}; // color -> CanvasPattern, built once for the map's canvas renderer
+function hatch(color) {
+  if (!HATCH[color]) {
+    const t = document.createElement("canvas"); t.width = t.height = 8;
+    const g = t.getContext("2d");
+    g.strokeStyle = color; g.lineWidth = 2.5;
+    g.beginPath(); g.moveTo(-2, 2); g.lineTo(2, -2); g.moveTo(0, 8); g.lineTo(8, 0); g.moveTo(6, 10); g.lineTo(10, 6); g.stroke();
+    // the shapes render on the canvas renderer (preferCanvas); _ctx is private API but stable since 1.0
+    HATCH[color] = map.getRenderer({ options: {} })._ctx.createPattern(t, "repeat");
+  }
+  return HATCH[color];
+}
 function optgroupHtml(cols, selected) {
   const groups = {};
   for (const h of cols) if (!HIDDEN_DISPLAY.has(h) && !HIDDEN_DROPDOWN.has(h) && !unitHidden(h)) (groups[classifyCol(h)] = groups[classifyCol(h)] || []).push(h);
@@ -774,6 +822,7 @@ function refreshSelectors() { // (re)build metric + filter dropdowns; applyContr
   applyControls();
 }
 
+let noZip = 0, noZipVals = new Map(); // skipped-row raw values, merged into the not-found dropdown at draw time
 function loadRows(data, fname) {
   const col = i => Object.keys(i)[0];
   if (!data.length) return banner(`"${fname}" appears to be empty.`);
@@ -782,16 +831,17 @@ function loadRows(data, fname) {
   if (!zipCol) return banner('Couldn\'t find a "ZipOrFSA" column: please upload the standard season report CSV.');
   csvHeaders = headers; zipColName = zipCol;
 
-  rows = []; const dupes = new Set();
+  rows = []; const dupes = new Map(); noZip = 0; noZipVals = new Map(); // dupes: code -> occurrences, listed in the summary dropdown
   const season = parseSeason(fname), si = $("seasonInfo");
   if (season) { si.textContent = season; si.classList.remove("hidden"); } else si.classList.add("hidden");
   for (const r of data) {
     const code = normalizeCode(r[zipCol]);
-    if (!code) continue;
+    // unshapeable codes ("Route 7" -> ROU, bare "0") can never match a boundary or centroid: park them with not found, raw value listed
+    if (!code || !/^\d{5}$|^[A-Z]\d[A-Z]$/.test(code)) { noZip++; const rv = String(r[zipCol] ?? "").trim(); noZipVals.set(rv, (noZipVals.get(rv) || 0) + 1); continue; }
     const rec = { code, raw: r, vals: {} };
     for (const h of headers) if (h !== zipCol) rec.vals[h] = toNum(r[h]);
     const existing = rows.find(x => x.code === code);
-    if (existing) { dupes.add(code); continue; }   // ponytail: keep first row on duplicates, report count
+    if (existing) { dupes.set(code, (dupes.get(code) || 1) + 1); continue; }   // ponytail: keep first row on duplicates, report count + list codes
     rows.push(rec);
   }
 
@@ -872,7 +922,11 @@ function loadRows(data, fname) {
   $("drop").classList.add("hidden");
 
   const bits = [`${data.length} rows`, `<span id="shownCount">${rows.length}</span> on map`];
-  if (dupes.size) bits.push(`${dupes.size} duplicates kept first`);
+  if (dupes.size) {
+    const dv = [...dupes.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([c, n]) => `${esc(c)} ×${n}`);
+    if (dupes.size > 8) dv.push(`…and ${dupes.size - 8} more`);
+    bits.push(`<details id="dupCount"><summary>${dupes.size} duplicates kept first</summary><div>${dv.join("\n")}</div></details>`);
+  }
   $("summary").innerHTML = bits.join(" · ");
 
   ensureBoundaries(); // redraws itself when loaded
@@ -1053,6 +1107,11 @@ $("penDen").addEventListener("change", () => { // re-derive penetration against 
 });
 
 // ---- rendering -----------------------------------------------------------
+function hl(els, on) { // hover styling shared by mouseover/out and the popup pin; ...el.base keeps the selection stroke
+  els.forEach(el => el.setStyle(on
+    ? { ...el.base, weight: el instanceof L.CircleMarker ? 3 : 2.5, fillOpacity: 0.85 }
+    : el.base));
+}
 function draw() {
   if (layer) layer.remove();
   layer = L.layerGroup().addTo(map);
@@ -1061,6 +1120,21 @@ function draw() {
   const passes = r =>
     (!fCol || !isFinite(fVal) || (r.vals[fCol] != null && r.vals[fCol] >= fVal));
   const shown = rows.filter(passes);
+  const filtered = rows.length - shown.length;
+  let fEl = $("fCount");
+  if (filtered && !fEl) {
+    $("summary").insertAdjacentHTML("beforeend", ' · <details id="fCount"><summary></summary><div></div></details>');
+    fEl = $("fCount");
+  }
+  if (fEl) {
+    if (filtered) {
+      fEl.querySelector("summary").textContent = `${filtered} filtered out`;
+      fEl.querySelector("div").innerHTML =
+        `Showing only codes with <b>${esc(dispName(fCol))}</b> ≥ <b>${esc($("filterIn").value)}</b>. ` +
+        `Codes with no ${esc(dispName(fCol))} value are hidden too. ` +
+        `Change or clear it in <a href="#" id="fLink">Settings &gt; Filter</a>.`;
+    } else fEl.remove(); // filter cleared or matches everything
+  }
   const sorted = shown.map(r => r.vals[metricCol]).filter(v => v != null).sort((a, b) => a - b);
   const mid = pct(sorted, 0.5);
   let lo, hi;
@@ -1090,13 +1164,9 @@ function draw() {
   const haveBounds = typeof BOUNDARIES !== "undefined";
   const permitMode = PERMIT_VIEW, permitAct = $("permitAct").value;
   const tipTxt = r => permitMode
-    ? `${r.code} · ${PERMIT_LABEL[permitStatus(r.code, permitAct)]}${permitRec(r.code) ? "" : " (no record)"}`
+    ? `${r.code} · ${PERMIT_LABEL[permitStatus(r.code, permitAct)]}${permitRec(r.code) ? "" : " (no record)"}${permitSplit(r.code) ? " (multiple rules)" : ""}`
     : `${r.code} · ${esc(dispName(metricCol))}: ${fmtM(metricCol, r.vals[metricCol])}`;
   const bounds = L.latLngBounds();
-  const hoverGrp = {}; // permit view: every shape sharing a permit record highlights together on hover
-  const hl = (els, on) => els.forEach(el => el.setStyle(on // ...el.base keeps the selection stroke while boosting
-    ? { ...el.base, weight: el instanceof L.CircleMarker ? 3 : 2.5, fillOpacity: 0.85 }
-    : el.base));
 
   function tOf(r) {
     const v = r.vals[metricCol];
@@ -1106,28 +1176,27 @@ function draw() {
   for (const r of shown) {
     const t = tOf(r);
     const fill = permitMode ? permitFill(r.code, permitAct) : t == null ? "#7A9189" : heat(t); // permit overlay: categorical, not the ramp
-    const grp = permitMode && (hoverGrp[permitIdOf(r.code) || "solo:" + r.code] = hoverGrp[permitIdOf(r.code) || "solo:" + r.code] || []);
+    const hfill = permitMode && permitSplit(r.code) ? hatch(fill) : fill; // split jurisdiction: hatched fill, solid stroke
     const selRec = permitSel ? (permitSel === LIVE_ID ? LIVE_REC : PERMITS[permitSel]) : null; // drafts ink while editing
     const isSel = !!(selRec && selRec.codes.includes(r.code));
     const polys = haveBounds && BOUNDARIES[r.code];
     if (polys) {
       // one multipolygon layer per code (poly = [outer, holes...]): all disjoint parts hover/highlight together
-      const style = { color: isSel ? PERMIT_SEL_STROKE : "#7A9189", weight: isSel ? 3 : 0.75, fillColor: fill, fillOpacity: isSel ? 0.8 : 0.55 }; // wm-neutral-400 stroke
+      const style = { color: isSel ? PERMIT_SEL_STROKE : "#7A9189", weight: isSel ? 3 : 0.75, fillColor: hfill, fillOpacity: isSel ? 0.8 : 0.55 }; // wm-neutral-400 stroke
       const p = L.polygon(polys, style)
         .bindTooltip(tipTxt(r), { sticky: true })
         .bindPopup(() => popupHtml(r), { maxWidth: 420 }) // function, not string: rebuilt fresh on every open so pins apply globally
-        .on("mouseover", grp ? () => hl(grp, true) : e => e.target.setStyle({ ...e.target.base, weight: 2.5, fillOpacity: 0.85 })) // area highlight, not just edge: complicated shapes need the fill to pop
-        .on("mouseout", grp ? () => hl(grp, false) : e => e.target.setStyle(e.target.base))
+        .on("mouseover", permitMode ? e => hl(e.target.grp, true) : e => e.target.setStyle({ ...e.target.base, weight: 2.5, fillOpacity: 0.85 })) // area highlight, not just edge: complicated shapes need the fill to pop
+        .on("mouseout", permitMode ? e => { if (openPopup && e.target.grp.includes(openPopup._source)) return; hl(e.target.grp, false); } : e => { if (openPopup?._source === e.target) return; e.target.setStyle(e.target.base); }) // pinned shape keeps its highlight while its popup is open
         .on("click", () => pickPermit && togglePermitCode(r.code))
         .addTo(layer);
       p.row = r; // popup re-render on pin toggle needs the row back
       p.base = style; // hover restore keeps the selection stroke
-      if (grp) grp.push(p);
       bounds.extend(p.getBounds());
-    } else if (CENTROIDS[r.code]) {
+    } else if (CENTROIDS[r.code] && (boundaryState === "failed" || haveBounds)) { // circles only once we KNOW there's no polygon: never flash circles before the geometry pops in
       const cm = L.circleMarker(CENTROIDS[r.code], {
         radius: 5 + 16 * (t == null ? 0.15 : Math.sqrt(t)),
-        color: isSel ? PERMIT_SEL_STROKE : fill, weight: isSel ? 3 : 1, fillColor: fill, fillOpacity: isSel ? 0.8 : 0.55
+        color: isSel ? PERMIT_SEL_STROKE : fill, weight: isSel ? 3 : 1, fillColor: hfill, fillOpacity: isSel ? 0.8 : 0.55
       })
         .bindTooltip(tipTxt(r))
         .bindPopup(() => popupHtml(r), { maxWidth: 420 })
@@ -1135,9 +1204,16 @@ function draw() {
         .addTo(layer);
       cm.row = r;
       cm.base = cm.options;
-      if (grp) { grp.push(cm); cm.on("mouseover", () => hl(grp, true)).on("mouseout", () => hl(grp, false)); }
+      if (permitMode) cm.on("mouseover", e => hl(e.target.grp, true)).on("mouseout", e => { if (openPopup && e.target.grp.includes(openPopup._source)) return; hl(e.target.grp, false); });
       bounds.extend(CENTROIDS[r.code]);
     }
+  }
+
+  // permit view: a shape's hover/pin group is every shape whose record claims the hovered code,
+  // so a split-jurisdiction code lights BOTH rules' areas. O(shapes^2) per redraw: fine at report scale.
+  if (permitMode) {
+    const all = layer.getLayers(), claim = Object.fromEntries(all.map(s => [s.row.code, claimIds(s.row.code)]));
+    for (const s of all) s.grp = all.filter(o => o !== s && claim[o.row.code].some(c => claim[s.row.code].includes(c))).concat(s);
   }
 
   $("legendTitle").textContent = dispName(metricCol) + (logOn ? " (log)" : "");
@@ -1148,19 +1224,29 @@ function draw() {
   $("permitLegend").classList.toggle("hidden", !permitMode);
   if (permitMode) $("permitLegendTitle").textContent = `Permits: ${permitAct === "d2d" ? "Knocks" : "Door Hangers"}`;
 
-  // rows that can never draw: no boundary polygon and no centroid (typos, retired codes).
+  // rows that can never draw: no boundary polygon and no centroid (typos, retired codes),
+  // plus rows skipped at load with no readable zip -- one "not found" widget covers both.
   // Centroid-less codes WITH a polygon (L3L, R5J.., S7A.. -- missing from GeoNames) still draw.
   const nf = haveBounds
     ? shown.filter(r => !BOUNDARIES[r.code] && !CENTROIDS[r.code]).map(r => r.code)
     : [];
+  const nfN = noZip + nf.length;
   let nfEl = $("nfCount");
-  if (nf.length && !nfEl) {
-    $("summary").insertAdjacentHTML("beforeend", ' · <span id="nfCount"></span>');
+  if (nfN && !nfEl) {
+    $("summary").insertAdjacentHTML("beforeend", ' · <details id="nfCount"><summary></summary><div></div></details>');
     nfEl = $("nfCount");
   }
   if (nfEl) {
-    if (nf.length) { nfEl.textContent = `${nf.length} not found`; nfEl.title = nf.join(", "); }
-    else nfEl.remove();
+    if (nfN) {
+      nfEl.querySelector("summary").textContent = `${nfN} not found`;
+      const skips = [...noZipVals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)
+        .map(([v, n]) => `${v === "" ? "(empty)" : `"${esc(v)}"`}${n > 1 ? " ×" + n : ""}`);
+      if (noZipVals.size > 8) skips.push(`…and ${noZipVals.size - 8} more`);
+      const parts = [];
+      if (nf.length) parts.push(nf.join("\n")); // real codes lead: actionable, never buried under the junk tail
+      if (skips.length) parts.push(skips.join("\n"));
+      nfEl.querySelector("div").textContent = parts.join("\n\n");
+    } else nfEl.remove(); // every code found on a redraw: drop the widget entirely
   }
 
   const sc = $("shownCount"); if (sc) sc.textContent = shown.length - nf.length;
@@ -1231,8 +1317,8 @@ $("file").addEventListener("change", e => { if (e.target.files[0]) handleFile(e.
 $("metric").addEventListener("change", e => { metricCol = e.target.value; draw(); });
 // pin toggling from popups (delegated: popup content is rebuilt as HTML strings)
 let openPopup = null;
-map.on("popupopen", e => { openPopup = e.popup; });
-map.on("popupclose", () => { openPopup = null; });
+map.on("popupopen", e => { openPopup = e.popup; const s = e.popup._source; if (s) hl(s.grp || [s], true); }); // clicked shape stays highlighted while its popup is open
+map.on("popupclose", () => { const s = openPopup && openPopup._source; if (s) hl(s.grp || [s], false); openPopup = null; });
 document.addEventListener("click", e => {
   const t = e.target.closest(".pin");
   if (!t) return;
@@ -1383,6 +1469,7 @@ $("permitCloseDialog").addEventListener("close", () => {
   if (v === "save" || v === "discard") next && next(); // cancel: pending action dropped
 });
 $("permitClose").addEventListener("click", maybeClosePermits);
+$("permitX").addEventListener("click", maybeClosePermits);
 let pickPermit = false; // Pick-on-map mode: clicks on shapes append their code to the permit form
 function endPickPermit() {
   pickPermit = false;
@@ -1468,6 +1555,7 @@ $("permitFile").addEventListener("change", e => {
       const j = JSON.parse(rd.result);
       let n = 0;
       for (const [k, v] of Object.entries(j)) if (v && typeof v === "object" && Array.isArray(v.codes)) { PERMITS[k] = v; n++; } // merge: import overwrites same record ids
+      if (!n) return banner("No permit records found in that file. Expected a file created by the Save button.");
       savePermits(); renderPermitList(); draw();
       banner(`Imported ${n} permit record${n === 1 ? "" : "s"}.`);
     } catch (err) { banner("Could not read that file as permit JSON."); }
@@ -1537,6 +1625,31 @@ $("helpLink").addEventListener("click", e => { e.stopPropagation(); $("helpDialo
 $("logMode").addEventListener("change", draw);
 map.on("moveend", () => savePrefs()); // pans and zooms both end in moveend: keep the saved view current
 ["filterCol", "filterIn"].forEach(id => $(id).addEventListener("input", draw));
+let hlT = []; // pending spotlight timers: a re-click restarts the glide cleanly
+$("summary").addEventListener("click", e => { // the filtered-out link: a dot at the mouse morphs into the filter-row cutout as it glides there
+  if (e.target.id !== "fLink") return;
+  e.preventDefault();
+  hlT.forEach(clearTimeout); hlT = [];
+  const sp = $("settingsPanel");
+  sp.showPopover(); // panel first: showing an auto popover would close the manual spot (top layer order)
+  const spot = $("hlSpot"), row = $("fltRow");
+  const fr = e.target.getBoundingClientRect();
+  const x = e.clientX || fr.left + fr.width / 2, y = e.clientY || fr.top + fr.height / 2; // synthetic clicks carry no coords: fall back to the link's center
+  // offset* ignores the entrance transform: the row's true resting spot, no drift guesswork
+  const tr = { left: sp.offsetLeft + row.offsetLeft, top: sp.offsetTop + row.offsetTop, width: row.offsetWidth, height: row.offsetHeight };
+  spot.style.transition = "none";
+  spot.style.left = x - 5 + "px"; spot.style.top = y - 5 + "px"; spot.style.width = "10px"; spot.style.height = "10px"; spot.style.borderRadius = "50%";
+  spot.style.opacity = "1";
+  spot.showPopover();
+  void spot.offsetWidth; spot.style.transition = ""; // commit the dot, then arm the morph + glide
+  requestAnimationFrame(() => requestAnimationFrame(() => { // moving from the first rendered frame
+    spot.style.left = tr.left - 10 + "px"; spot.style.top = tr.top - 10 + "px";
+    spot.style.width = tr.width + 20 + "px"; spot.style.height = tr.height + 20 + "px"; spot.style.borderRadius = "10px";
+  }));
+  hlT.push(setTimeout(() => { spot.style.opacity = "0"; }, 760)); // glide done: fade the veil, the spotlight itself is the highlight
+  hlT.push(setTimeout(() => { spot.hidePopover(); spot.style.opacity = "1"; }, 1090));
+  e.target.closest("details")?.removeAttribute("open");
+});
 ["minIn", "maxIn"].forEach(id => $(id).addEventListener("input", draw));
 
 const drop = $("drop");
