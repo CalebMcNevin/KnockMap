@@ -45,6 +45,8 @@
   #permGrp { display: flex; align-items: center; gap: 8px; }
   #viewSeg button.pressed { transform: scale(.92); background: var(--wm-green-600); color: #fff; } /* the tour's simulated press on the toggle's Permits half */
   #permitsBtn.pressed { transform: scale(.92); background: var(--wm-green-500); border-color: var(--wm-green-500); color: #fff; } /* the tour's simulated press on Edit Permits */
+  #settingsBtn.pressed { transform: scale(.92); background: var(--wm-green-500); color: #fff; } /* the tour's simulated press on the gear */
+  #permitAct.pressed { transform: scale(.96); box-shadow: 0 0 0 2px var(--wm-green-600); } /* the tour's simulated press on the legend picker */
   #viewSeg { display: inline-flex; border: 1px solid var(--wm-neutral-200); border-radius: var(--radius-sm); overflow: hidden; }
   #viewSeg button { border: none; border-radius: 0; padding: 5px 12px; font-size: 13.5px; color: var(--wm-gray-700); }
   #viewSeg button:hover { border: none; background: var(--wm-neutral-50); }
@@ -250,6 +252,7 @@
   #tourActDD { position: absolute; background: #fff; border: 1px solid var(--wm-neutral-200); border-radius: 6px; box-shadow: 0 4px 14px rgb(0 0 0 / .12); padding: 4px; min-width: 130px; z-index: 2; animation: ddIn .15s ease; } /* the tour's replica of the picker's expanded options */
   #tourActDD div { padding: 5px 10px; font-size: 13px; color: var(--wm-gray-700); border-radius: 4px; }
   #tourActDD div.on { background: var(--wm-neutral-100); font-weight: 600; color: var(--wm-green-700); }
+  #tourActDD div.pick { background: var(--wm-green-500); color: #fff; } /* the tour's simulated pick of Knocks */
   @keyframes ddIn { from { opacity: 0; transform: translateY(-4px); } }
   dialog#permitDialog .frow { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
   dialog#permitDialog[open] { z-index: 1600; inset-block: 0; margin-block: auto; max-height: calc(100vh - 16px); overflow: auto; } /* non-modal: floats above the map panes/popups and the toasts; UA only auto-centers horizontally, inset-block + margin-block add the vertical half */
@@ -982,9 +985,9 @@ const TOUR = [
   { t: "#uploadsGrp", ti: "Bring in your data", b: "New CSV loads your DK Summary By Zip/FSA report and the map builds itself: boundaries, home counts, every metric. The ? button walks you through exporting the report, step by step." },
   { t: "#metricWrap", ti: "Pick your primary metric", b: "Pick any metric and the whole map recolors instantly: sales, knocks, close rates, whatever drives your decisions. Colors, sizes and popups all follow along." },
   { t: "#map", ti: "Click any area for the full story", b: "Hotspots and gaps jump out at a glance. Click a zip / FSA for its complete numbers, scroll to zoom, drag to pan." },
-  { t: "#settingsPanel", panel: true, ti: "Make the map yours", b: "The Settings button (top right) opens this panel: color scales that keep outliers from washing out the map, log scales for skewed data, a filter that drops low-activity areas, and area units (km² or sq mi)." },
-  { t: "#permGrp", t2: [["#viewPermBtn", 1000], ["#permitLegend", 2000]], ti: "Permit Requirements Documentation", b: "Flip to the Permits view to recolor the map by each area's requirement at a glance. The legend on the map switches between knocks and door hangers; the Edit Permits button opens the rule tracker for every jurisdiction." },
-  { t: "#permitsBtn", t2: [["#permitsBtn", 1000], ["#permitDialog", 2000]], ti: "The rule tracker", b: "One record per jurisdiction: the codes it covers, the requirement for knocks and door hangers, fees, and where you verified it. It all saves automatically to this browser, or save a file to share with another computer." },
+  { t: "#settingsBtn", t2: [["#settingsBtn", 1000, settingsClickDemo], ["#settingsPanel", 2000]], ti: "Make the map yours", b: "The Settings button (top right) opens this panel: color scales that keep outliers from washing out the map, log scales for skewed data, a filter that drops low-activity areas, and area units (km² or sq mi)." },
+  { t: "#permGrp", t2: [["#viewPermBtn", 1000, permitClickDemo], ["#permitAct", 2000, permitActDemo], ["#permitAct", 3000, permitKnocksDemo]], ti: "Permit Requirements Documentation", b: "Flip to the Permits view to recolor the map by each area's requirement at a glance. The legend on the map switches between knocks and door hangers; the Edit Permits button opens the rule tracker for every jurisdiction." },
+  { t: "#permitsBtn", t2: [["#permitsBtn", 1000, editPermitsClickDemo], ["#permitDialog", 2000]], ti: "The rule tracker", b: "One record per jurisdiction: the codes it covers, the requirement for knocks and door hangers, fees, and where you verified it. It all saves automatically to this browser, or save a file to share with another computer." },
   { t: "#tourBtn", ti: "Your compass home", b: "Whenever you want this walkthrough again, the compass button brings it right back." }
 ];
 let tourI = -1, tourPanel = false, tourDlg = false, tourT2 = 0, tourFlipped = false, TOUR_DONE = false;
@@ -1027,15 +1030,41 @@ function editPermitsClickDemo() { // phase 1 of the rule-tracker step: press Edi
   tourPlacePermitDlg();
   tourDlg = true; // the form is the tour's now: tourEnd closes it, other steps must not
 }
-function permitActDemo() { // phase 2 of the view-toggle step: the picker's options, shown expanded under it
+function tourShowPanel(open) { // restack so veil/spot/card paint above the panel in the top layer; reopen brings the trio back above it
+  ["tourCard", "tourSpot", "tourVeil"].forEach(id => tourPop($(id), false));
+  tourPop($("settingsPanel"), open);
+  if (open) ["tourVeil", "tourSpot", "tourCard"].forEach(id => tourPop($(id), true));
+  tourPanel = open;
+}
+function settingsClickDemo() { // phase 1 of the Settings step: press the gear; that press opens the panel
+  const b = $("settingsBtn");
+  b.classList.add("pressed");
+  setTimeout(() => b.classList.remove("pressed"), 350);
+  tourShowPanel(true);
+}
+function permitActDemo() { // phase 2 of the view-toggle step: press the picker, then show its options expanded under it
   // ponytail: a replica dropdown; native select.showPicker() needs live user activation, cannot be closed programmatically, and its popup swallows the next click
+  const sel = $("permitAct");
+  sel.classList.add("pressed");
+  setTimeout(() => sel.classList.remove("pressed"), 350);
   $("tourActDD")?.remove();
-  const sel = $("permitAct"), dd = document.createElement("div");
+  const dd = document.createElement("div");
   dd.id = "tourActDD";
   dd.innerHTML = `<div class="${permitAct === "d2d" ? "on" : ""}">Knocks</div><div class="${permitAct === "flyer" ? "on" : ""}">Door Hangers</div>`;
   dd.style.left = sel.offsetLeft + "px";
   dd.style.top = sel.offsetTop + sel.offsetHeight + 3 + "px";
   $("permitLegend").appendChild(dd);
+}
+function permitKnocksDemo() { // phase 3 of the view-toggle step: pick Knocks from the replica, for real
+  const dd = $("tourActDD"), row = dd?.firstElementChild;
+  if (!row) return;
+  row.classList.add("pick");
+  setTimeout(() => row.classList.remove("pick"), 350);
+  if (permitAct !== "d2d") {
+    permitAct = "d2d"; $("permitAct").value = "d2d"; savePrefs(); draw();
+    dd.querySelectorAll("div").forEach(d => d.classList.remove("on")); // the current-option marker moves to Knocks
+    row.classList.add("on");
+  }
 }
 function tourStep(i) {
   tourI = i;
@@ -1043,23 +1072,16 @@ function tourStep(i) {
   $("tourActDD")?.remove(); // the picker replica belongs to the view-toggle step only
   const s = TOUR[i], card = $("tourCard");
   if (tourDlg && i !== 6) { maybeClosePermits(); tourDlg = false; } // leaving the rule-tracker step: its form goes too
-  // phased follow-ups: view-toggle step presses the Permits half (the real flip), then points at the legend picker;
-  // rule-tracker step presses Edit Permits (really opening the form) while the highlight stays on the button another
-  // second, then the spotlight moves onto the form
-  if (s.t2) s.t2.forEach(([sel, ms], k) => setTimeout(() => {
+  // phased follow-ups run each step's choreography: a visible press on the control that does the real action,
+  // then the spotlight moves onto the result (view toggle, legend picker + Knocks pick, Edit Permits, Settings)
+  if (s.t2) s.t2.forEach(([sel, ms, act], k) => setTimeout(() => {
     if (tourI !== i || tourT2 !== k) return;
     tourT2 = k + 1;
-    if (sel === "#viewPermBtn") permitClickDemo();
-    else if (sel === "#permitsBtn") editPermitsClickDemo();
-    else if (sel === "#permitLegend") permitActDemo();
+    if (act) act();
     tourPlace();
   }, ms));
   $("settingsPanel").popover = "manual"; // tour owns the panel: button clicks on the card must not light-dismiss it
-  if (!!s.panel !== tourPanel) { // restack so veil/spot/card paint above the open panel in the top layer
-    ["tourCard", "tourSpot", "tourVeil"].forEach(id => tourPop($(id), false));
-    tourPop($("settingsPanel"), !!s.panel);
-    tourPanel = !!s.panel;
-  }
+  if (tourPanel) tourShowPanel(false); // any step change closes the panel; the Settings step's press demo reopens it
   ["tourVeil", "tourSpot", "tourCard"].forEach(id => tourPop($(id), true));
   card.querySelector(".cnt").textContent = `Step ${i + 1} of ${TOUR.length}`;
   card.querySelector("h3").textContent = s.ti;
@@ -1067,7 +1089,6 @@ function tourStep(i) {
   $("tourBack").disabled = i === 0;
   $("tourNext").textContent = i === TOUR.length - 1 ? "Done" : "Next";
   tourPlace();
-  if (s.panel) setTimeout(tourPlace, 220); // re-measure once the entrance animation has finished
 }
 function tourPlace() { // moves the cutout only; the card stays centered on screen
   if (tourI < 0) return;
