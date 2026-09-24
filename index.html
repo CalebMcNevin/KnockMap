@@ -247,6 +247,10 @@
   #legend .sw i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
   #legend .sw i.hatch { background: repeating-linear-gradient(45deg, #7A9189 0 2px, transparent 2px 6px); border: 1px solid #7A9189; } /* mirrors the canvas stripe pattern for split-jurisdiction codes */
   #permitLegend select { display: block; margin: 0 0 6px; font-size: 13px; padding: 3px 28px 3px 8px; max-width: 100%; } /* the Knocks / Door Hangers picker IS the legend header */
+  #tourActDD { position: absolute; background: #fff; border: 1px solid var(--wm-neutral-200); border-radius: 6px; box-shadow: 0 4px 14px rgb(0 0 0 / .12); padding: 4px; min-width: 130px; z-index: 2; animation: ddIn .15s ease; } /* the tour's replica of the picker's expanded options */
+  #tourActDD div { padding: 5px 10px; font-size: 13px; color: var(--wm-gray-700); border-radius: 4px; }
+  #tourActDD div.on { background: var(--wm-neutral-100); font-weight: 600; color: var(--wm-green-700); }
+  @keyframes ddIn { from { opacity: 0; transform: translateY(-4px); } }
   dialog#permitDialog .frow { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
   dialog#permitDialog[open] { z-index: 1600; inset-block: 0; margin-block: auto; max-height: calc(100vh - 16px); overflow: auto; } /* non-modal: floats above the map panes/popups and the toasts; UA only auto-centers horizontally, inset-block + margin-block add the vertical half */
   dialog#permitDialog h2 { cursor: move; } /* the heading is the drag handle */
@@ -993,6 +997,7 @@ function tourPop(el, show) {
 function tourEnd() {
   if (tourI < 0) return;
   tourI = -1;
+  $("tourActDD")?.remove();
   ["tourCard", "tourSpot", "tourVeil"].forEach(id => tourPop($(id), false));
   const panel = $("settingsPanel");
   tourPop(panel, false);
@@ -1022,9 +1027,20 @@ function editPermitsClickDemo() { // phase 1 of the rule-tracker step: press Edi
   tourPlacePermitDlg();
   tourDlg = true; // the form is the tour's now: tourEnd closes it, other steps must not
 }
+function permitActDemo() { // phase 2 of the view-toggle step: the picker's options, shown expanded under it
+  // ponytail: a replica dropdown; native select.showPicker() needs live user activation, cannot be closed programmatically, and its popup swallows the next click
+  $("tourActDD")?.remove();
+  const sel = $("permitAct"), dd = document.createElement("div");
+  dd.id = "tourActDD";
+  dd.innerHTML = `<div class="${permitAct === "d2d" ? "on" : ""}">Knocks</div><div class="${permitAct === "flyer" ? "on" : ""}">Door Hangers</div>`;
+  dd.style.left = sel.offsetLeft + "px";
+  dd.style.top = sel.offsetTop + sel.offsetHeight + 3 + "px";
+  $("permitLegend").appendChild(dd);
+}
 function tourStep(i) {
   tourI = i;
   tourT2 = 0; // t2 phases restart with each step
+  $("tourActDD")?.remove(); // the picker replica belongs to the view-toggle step only
   const s = TOUR[i], card = $("tourCard");
   if (tourDlg && i !== 6) { maybeClosePermits(); tourDlg = false; } // leaving the rule-tracker step: its form goes too
   // phased follow-ups: view-toggle step presses the Permits half (the real flip), then points at the legend picker;
@@ -1035,6 +1051,7 @@ function tourStep(i) {
     tourT2 = k + 1;
     if (sel === "#viewPermBtn") permitClickDemo();
     else if (sel === "#permitsBtn") editPermitsClickDemo();
+    else if (sel === "#permitLegend") permitActDemo();
     tourPlace();
   }, ms));
   $("settingsPanel").popover = "manual"; // tour owns the panel: button clicks on the card must not light-dismiss it
