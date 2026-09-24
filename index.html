@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DNP Results by FSA/Zip</title>
+<title>Knock Map</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -93,7 +93,7 @@
 
   /* primary control: the emphasized metric selector */
   #metricWrap { gap: 10px; }
-  #metricWrap .lbl, #permitActWrap .lbl {
+  #metricWrap .lbl, #permitActWrap .lbl, #permGrp .lbl {
     font: 600 11px/1.2 "DM Sans", Inter, ui-sans-serif, sans-serif;
     color: var(--wm-green-700); text-transform: uppercase; letter-spacing: .07em;
   }
@@ -325,7 +325,7 @@
 
 <header>
   <div class="row1">
-    <h1>DNP Results by FSA/Zip</h1>
+    <h1>Knock Map</h1>
     <span id="seasonInfo" class="hidden"></span>
     <span class="spacer"></span>
     <span id="uploadsGrp">
@@ -342,6 +342,7 @@
     <span id="summary"></span>
     <span class="spacer"></span>
     <span id="permGrp" title="Switch between metric results and permit-status coloring">
+      <span class="lbl">View</span>
       <span id="viewSeg">
         <button id="viewResBtn" type="button" class="on">Results</button><button id="viewPermBtn" type="button">Permits</button>
       </span>
@@ -980,14 +981,15 @@ function savePrefs() {
 // veil/spot/card are popovers shown after #settingsPanel so the top layer stacks them above it
 const TOUR = [
   { ti: "Your season on one map", b: "Every zip and FSA you knocked is right here, colored by results. Spot your best markets in seconds, then dig into any area that catches your eye." },
-  { t: "#uploadsGrp", ti: "Bring in your data", b: "New CSV loads any WEMMS report and the map builds itself: boundaries, home counts, every metric. The ? button walks you through exporting the report, step by step." },
-  { t: "#metricWrap", ti: "One dropdown runs the show", b: "Pick any metric and the whole map recolors instantly: sales, knocks, close rates, whatever drives your decisions. Colors, sizes and popups all follow along." },
+  { t: "#uploadsGrp", ti: "Bring in your data", b: "New CSV loads your DK Summary By Zip/FSA report and the map builds itself: boundaries, home counts, every metric. The ? button walks you through exporting the report, step by step." },
+  { t: "#metricWrap", ti: "Pick your primary metric", b: "Pick any metric and the whole map recolors instantly: sales, knocks, close rates, whatever drives your decisions. Colors, sizes and popups all follow along." },
   { t: "#map", ti: "Click any area for the full story", b: "Hotspots and gaps jump out at a glance. Click a zip / FSA for its complete numbers, scroll to zoom, drag to pan." },
   { t: "#settingsPanel", panel: true, ti: "Make the map yours", b: "The Settings button (top right) opens this panel: color scales that keep outliers from washing out the map, log scales for skewed data, a filter that drops low-activity areas, and area units (km² or sq mi)." },
-  { t: "#permGrp", ti: "Know before you knock", b: "Flip to the Permits view to recolor the map by requirement: clear, conditional, or prohibited at a glance. The Permits button opens the rule tracker for every jurisdiction, shareable as JSON." },
-  { t: "#tourBtn", ti: "Your compass home", b: "Click any area to dig into its numbers. And whenever you want this walkthrough again, the compass button brings it right back." }
+  { t: "#permGrp", ti: "Permit Requirements Documentation", b: "Flip to the Permits view to recolor the map by each area's requirement at a glance. The Permits button opens the rule tracker for every jurisdiction." },
+  { t: "#permitDialog", dlg: true, ti: "The rule tracker", b: "One record per jurisdiction: the codes it covers, the requirement for knocks and door hangers, fees, and where you verified it. It all saves automatically to this browser, or save a file to share with another computer." },
+  { t: "#tourBtn", ti: "Your compass home", b: "Whenever you want this walkthrough again, the compass button brings it right back." }
 ];
-let tourI = -1, tourPanel = false, TOUR_DONE = false;
+let tourI = -1, tourPanel = false, tourDlg = false, TOUR_DONE = false;
 try { TOUR_DONE = !!JSON.parse(localStorage.getItem("dkm-prefs") || "{}").tourDone; } catch (e) { /* file:// quirks */ }
 
 function tourPop(el, show) {
@@ -1002,6 +1004,7 @@ function tourEnd() {
   tourPop(panel, false);
   panel.popover = "auto"; // back to normal: click-away closes it outside the tour
   tourPanel = false;
+  if (tourDlg) { maybeClosePermits(); tourDlg = false; }
   TOUR_DONE = true; savePrefs(); // never auto-run again
 }
 function tourStep(i) {
@@ -1012,6 +1015,18 @@ function tourStep(i) {
     ["tourCard", "tourSpot", "tourVeil"].forEach(id => tourPop($(id), false));
     tourPop($("settingsPanel"), !!s.panel);
     tourPanel = !!s.panel;
+  }
+  if (!!s.dlg !== tourDlg) { // the permit form is a <dialog>, not a popover: no restacking needed, the top-layer trio already paints above it
+    if (s.dlg) {
+      openPermitEditor("");
+      const d = $("permitDialog"), cw = $("tourCard").offsetWidth || 340;
+      // card stays centered; the form sits to its left with a ~50px gap (clamped to the screen edge on narrow windows)
+      d.style.left = Math.max(8, (innerWidth - cw) / 2 - 50 - d.offsetWidth) + "px";
+      d.style.top = Math.max(8, (innerHeight - d.offsetHeight) / 2) + "px";
+      d.style.margin = "0"; // UA dialog centering (inset 0 + margin auto) would re-ignore our left otherwise; same trick as placePermitDlg
+    }
+    else maybeClosePermits();
+    tourDlg = !!s.dlg;
   }
   ["tourVeil", "tourSpot", "tourCard"].forEach(id => tourPop($(id), true));
   card.querySelector(".cnt").textContent = `Step ${i + 1} of ${TOUR.length}`;
