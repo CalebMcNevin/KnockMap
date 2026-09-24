@@ -248,11 +248,11 @@
   #legend .sw { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: var(--wm-gray-700); font-size: 13px; }
   #legend .sw i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
   #legend .sw i.hatch { background: repeating-linear-gradient(45deg, #7A9189 0 2px, transparent 2px 6px); border: 1px solid #7A9189; } /* mirrors the canvas stripe pattern for split-jurisdiction codes */
-  #permitLegend select { display: block; margin: 0 0 6px; font-size: 13px; padding: 3px 28px 3px 8px; max-width: 100%; } /* the Knocks / Door Hangers picker IS the legend header */
+  #permitLegend select { display: block; margin: 0 0 6px; font-size: 13px; padding: 3px 28px 3px 8px; max-width: 100%; } /* the Knocking / Door Hangers picker IS the legend header */
   #tourActDD { position: absolute; background: #fff; border: 1px solid var(--wm-neutral-200); border-radius: 6px; box-shadow: 0 4px 14px rgb(0 0 0 / .12); padding: 4px; min-width: 130px; z-index: 2; animation: ddIn .15s ease; } /* the tour's replica of the picker's expanded options */
   #tourActDD div { padding: 5px 10px; font-size: 13px; color: var(--wm-gray-700); border-radius: 4px; }
   #tourActDD div.on { background: var(--wm-neutral-100); font-weight: 600; color: var(--wm-green-700); }
-  #tourActDD div.pick { background: var(--wm-green-500); color: #fff; } /* the tour's simulated pick of Knocks */
+  #tourActDD div.pick { background: var(--wm-green-500); color: #fff; } /* the tour's simulated pick of Knocking */
   @keyframes ddIn { from { opacity: 0; transform: translateY(-4px); } }
   dialog#permitDialog .frow { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
   dialog#permitDialog[open] { z-index: 1600; inset-block: 0; margin-block: auto; max-height: calc(100vh - 16px); overflow: auto; } /* non-modal: floats above the map panes/popups and the toasts; UA only auto-centers horizontally, inset-block + margin-block add the vertical half */
@@ -411,7 +411,7 @@
   </div>
   <hr style="border:none;border-top:1px solid var(--wm-neutral-100);margin:12px 0">
   <div class="frow"><span>Zips / FSAs<span class="q" data-tip="One or more zip / FSA codes, separated by commas or spaces. They all share this one rule. Use Pick on map to add codes by clicking areas. A zip/FSA is not a legal jurisdiction: keep the jurisdiction field pointing at the city or county whose rule this is.">?</span></span><input type="text" id="pCode" placeholder="90210, 90211, 90212" title="One or more codes, separated by commas or spaces"><button id="pPick" type="button" title="Click areas on the map to append their zip / FSA to this record. Click again or press Esc to stop.">Pick on map</button></div>
-  <div class="frow"><span>Knocks</span>
+  <div class="frow"><span>Knocking</span>
     <select id="pD2d"><option value="unknown">Unknown</option><option value="none">No permit needed</option><option value="permit">Permit required</option><option value="conditional">Conditional</option><option value="prohibited">Prohibited</option></select>
     <label><input type="checkbox" id="pGotD2d"> obtained</label></div>
   <div class="frow"><span>Door Hangers</span>
@@ -505,7 +505,7 @@
   <div class="none"><i></i> no value</div>
   <div id="permitLegend" class="hidden">
     <select id="permitAct" title="Which permit rule colors the map: knocking or door hanger requirements">
-      <option value="d2d">Knocks</option>
+      <option value="d2d">Knocking</option>
       <option value="flyer">Door Hangers</option>
     </select>
     <div class="sw"><i style="background:#00653A"></i> no permit needed</div>
@@ -986,8 +986,8 @@ const TOUR = [
   { t: "#metricWrap", ti: "Pick your primary metric", b: "Pick any metric and the whole map recolors instantly: sales, knocks, close rates, whatever drives your decisions. Colors, sizes and popups all follow along." },
   { t: "#map", ti: "Click any area for the full story", b: "Hotspots and gaps jump out at a glance. Click a zip / FSA for its complete numbers, scroll to zoom, drag to pan." },
   { t: "#settingsBtn", t2: [["#settingsBtn", 1000, settingsClickDemo], ["#settingsPanel", 2000]], ti: "Make the map yours", b: "The Settings button (top right) opens this panel: color scales that keep outliers from washing out the map, log scales for skewed data, a filter that drops low-activity areas, and area units (km² or sq mi)." },
-  { t: "#permGrp", t2: [["#viewPermBtn", 1000, permitClickDemo], ["#permitAct", 2000, permitActDemo], ["#permitAct", 3000, permitKnocksDemo]], ti: "Permit Requirements Documentation", b: "Flip to the Permits view to recolor the map by each area's requirement at a glance. The legend on the map switches between knocks and door hangers; the Edit Permits button opens the rule tracker for every jurisdiction." },
-  { t: "#permitsBtn", t2: [["#permitsBtn", 1000, editPermitsClickDemo], ["#permitDialog", 2000]], ti: "The rule tracker", b: "One record per jurisdiction: the codes it covers, the requirement for knocks and door hangers, fees, and where you verified it. It all saves automatically to this browser, or save a file to share with another computer." },
+  { t: "#permGrp", t2: [["#viewPermBtn", 1000, permitClickDemo], ["#permitAct", 2000], ["#permitLegend", 3000, permitActDemo], ["#permitAct", 4000, permitKnocksDemo]], ti: "Permit Requirements Documentation", b: "Flip to the Permits view to recolor the map by each area's requirement at a glance. The legend on the map switches between knocking and door hangers; the Edit Permits button opens the rule tracker for every jurisdiction." },
+  { t: "#permitsBtn", t2: [["#permitsBtn", 1000, editPermitsClickDemo], ["#permitDialog", 2000]], ti: "The rule tracker", b: "One record per jurisdiction: the codes it covers, the requirement for knocking and door hangers, fees, and where you verified it. It all saves automatically to this browser, or save a file to share with another computer." },
   { t: "#tourBtn", ti: "Your compass home", b: "Whenever you want this walkthrough again, the compass button brings it right back." }
 ];
 let tourI = -1, tourPanel = false, tourDlg = false, tourT2 = 0, tourFlipped = false, TOUR_DONE = false;
@@ -1050,21 +1050,22 @@ function permitActDemo() { // phase 2 of the view-toggle step: press the picker,
   $("tourActDD")?.remove();
   const dd = document.createElement("div");
   dd.id = "tourActDD";
-  dd.innerHTML = `<div class="${permitAct === "d2d" ? "on" : ""}">Knocks</div><div class="${permitAct === "flyer" ? "on" : ""}">Door Hangers</div>`;
+  const act = $("permitAct").value;
+  dd.innerHTML = `<div class="${act === "d2d" ? "on" : ""}">Knocking</div><div class="${act === "flyer" ? "on" : ""}">Door Hangers</div>`;
   dd.style.left = sel.offsetLeft + "px";
   dd.style.top = sel.offsetTop + sel.offsetHeight + 3 + "px";
   $("permitLegend").appendChild(dd);
 }
-function permitKnocksDemo() { // phase 3 of the view-toggle step: pick Knocks from the replica, for real
+function permitKnocksDemo() { // phase 4 of the view-toggle step: pick Knocking, the dropdown folds back up
   const dd = $("tourActDD"), row = dd?.firstElementChild;
   if (!row) return;
   row.classList.add("pick");
-  setTimeout(() => row.classList.remove("pick"), 350);
-  if (permitAct !== "d2d") {
-    permitAct = "d2d"; $("permitAct").value = "d2d"; savePrefs(); draw();
-    dd.querySelectorAll("div").forEach(d => d.classList.remove("on")); // the current-option marker moves to Knocks
-    row.classList.add("on");
-  }
+  if ($("permitAct").value !== "d2d") { $("permitAct").value = "d2d"; savePrefs(); draw(); }
+  setTimeout(() => { // hold the pick flash, then fade the list away and finally shrink the spotlight
+    dd.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: "forwards" });
+    setTimeout(() => { dd.remove(); tourPlace(); }, 160);
+  }, 350);
+  return "defer"; // the spotlight stays wide until the dropdown has collapsed
 }
 function tourStep(i) {
   tourI = i;
@@ -1073,11 +1074,11 @@ function tourStep(i) {
   const s = TOUR[i], card = $("tourCard");
   if (tourDlg && i !== 6) { maybeClosePermits(); tourDlg = false; } // leaving the rule-tracker step: its form goes too
   // phased follow-ups run each step's choreography: a visible press on the control that does the real action,
-  // then the spotlight moves onto the result (view toggle, legend picker + Knocks pick, Edit Permits, Settings)
+  // then the spotlight moves onto the result (view toggle, legend picker + Knocking pick, Edit Permits, Settings)
   if (s.t2) s.t2.forEach(([sel, ms, act], k) => setTimeout(() => {
     if (tourI !== i || tourT2 !== k) return;
     tourT2 = k + 1;
-    if (act) act();
+    if (act && act() === "defer") return; // the Knocking pick schedules its own move, once the dropdown has folded up
     tourPlace();
   }, ms));
   $("settingsPanel").popover = "manual"; // tour owns the panel: button clicks on the card must not light-dismiss it
@@ -1363,7 +1364,7 @@ function popupHtml(r) {
   const link = (u, txt) => u ? ` <a href="${esc(u)}" target="_blank" rel="noopener">${esc(txt || u.replace(/^https?:\/\//, "").slice(0, 40))}</a>` : "";  const got = (st, on, key) => ["permit", "conditional"].includes(st) // obtaining only applies when a permit is actually required
     ? ` <input type="checkbox" class="got" title="Permit obtained"${on ? " checked" : ""} data-g="${key}">` : "";
   const permitSection = pr ? `<tr class="gh"><td colspan="2">Permits <button class="pedit" style="font-size:11px;padding:1px 8px">Edit</button></td></tr>` +
-    `<tr><td>Knocks</td><td>${PERMIT_LABEL[pr.d2d] || "Unknown"}${got(pr.d2d, pr.gotD2d, "d2d")}</td></tr>` +
+    `<tr><td>Knocking</td><td>${PERMIT_LABEL[pr.d2d] || "Unknown"}${got(pr.d2d, pr.gotD2d, "d2d")}</td></tr>` +
     `<tr><td>Door Hangers</td><td>${PERMIT_LABEL[pr.flyer] || "Unknown"}${got(pr.flyer, pr.gotFlyer, "flyer")}</td></tr>` +
     (pr.jurisdiction ? `<tr><td>Jurisdiction</td><td>${esc(pr.jurisdiction)}</td></tr>` : "") +
     (pr.hours ? `<tr><td>Hours</td><td>${esc(pr.hours)}</td></tr>` : "") +
@@ -1643,7 +1644,7 @@ $("permitCsvBtn").addEventListener("click", () => { // spreadsheet export: one r
      PERMIT_LABEL[r.flyer] || "Unknown", r.gotFlyer ? "yes" : "",
      r.jurisdiction || "", r.hours || "", r.feeIndiv || "", r.feeBiz || "", r.processing || "",
      r.appUrl || "", r.notes || "", r.source || "", r.verified || ""].map(q).join(","));
-  const csv = "Zips/FSAs,Knocks,Knocks obtained,Door Hangers,Door Hangers obtained,Jurisdiction,Allowed hours,Individual fee,Business fee,Processing,Application URL,Notes,Source URL,Last verified\n" + lines.join("\n");
+  const csv = "Zips/FSAs,Knocking,Knocking obtained,Door Hangers,Door Hangers obtained,Jurisdiction,Allowed hours,Individual fee,Business fee,Processing,Application URL,Notes,Source URL,Last verified\n" + lines.join("\n");
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
   a.download = "dkm-permits.csv";
