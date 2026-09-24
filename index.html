@@ -43,13 +43,13 @@
   header .row2 { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
   #uploadsGrp { display: flex; align-items: center; gap: 10px; }
   #permGrp { display: flex; align-items: center; gap: 8px; }
+  #viewSeg button.pressed { transform: scale(.92); background: var(--wm-green-600); color: #fff; } /* the tour's simulated press on the toggle's Permits half */
+  #permitsBtn.pressed { transform: scale(.92); background: var(--wm-green-500); border-color: var(--wm-green-500); color: #fff; } /* the tour's simulated press on Edit Permits */
   #viewSeg { display: inline-flex; border: 1px solid var(--wm-neutral-200); border-radius: var(--radius-sm); overflow: hidden; }
   #viewSeg button { border: none; border-radius: 0; padding: 5px 12px; font-size: 13.5px; color: var(--wm-gray-700); }
   #viewSeg button:hover { border: none; background: var(--wm-neutral-50); }
   #viewSeg button.on { background: var(--wm-green-500); color: #fff; }
   #viewSeg button.on:hover { background: var(--wm-green-600); }
-  #permitActWrap { display: flex; align-items: center; gap: 6px; }
-  #permitActWrap .lbl { flex: none; }
   #permitAct { padding: 5px 8px; font-size: 13.5px; }
   header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; margin: 0; color: var(--wm-green-700); }
   header label { display: flex; align-items: center; gap: 6px; }
@@ -93,7 +93,7 @@
 
   /* primary control: the emphasized metric selector */
   #metricWrap { gap: 10px; }
-  #metricWrap .lbl, #permitActWrap .lbl, #permGrp .lbl {
+  #metricWrap .lbl, #permGrp .lbl {
     font: 600 11px/1.2 "DM Sans", Inter, ui-sans-serif, sans-serif;
     color: var(--wm-green-700); text-transform: uppercase; letter-spacing: .07em;
   }
@@ -246,7 +246,7 @@
   #legend .sw { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: var(--wm-gray-700); font-size: 13px; }
   #legend .sw i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
   #legend .sw i.hatch { background: repeating-linear-gradient(45deg, #7A9189 0 2px, transparent 2px 6px); border: 1px solid #7A9189; } /* mirrors the canvas stripe pattern for split-jurisdiction codes */
-  #permitLegend b { display: block; margin-bottom: 2px; }
+  #permitLegend select { display: block; margin: 0 0 6px; font-size: 13px; padding: 3px 28px 3px 8px; max-width: 100%; } /* the Knocks / Door Hangers picker IS the legend header */
   dialog#permitDialog .frow { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
   dialog#permitDialog[open] { z-index: 1600; inset-block: 0; margin-block: auto; max-height: calc(100vh - 16px); overflow: auto; } /* non-modal: floats above the map panes/popups and the toasts; UA only auto-centers horizontally, inset-block + margin-block add the vertical half */
   dialog#permitDialog h2 { cursor: move; } /* the heading is the drag handle */
@@ -346,14 +346,7 @@
       <span id="viewSeg">
         <button id="viewResBtn" type="button" class="on">Results</button><button id="viewPermBtn" type="button">Permits</button>
       </span>
-      <span id="permitActWrap" class="hidden">
-        <span class="lbl">Permit type</span>
-        <select id="permitAct" title="Which permit rule colors the map: knock (D2D) or door hanger (flyer) requirements">
-          <option value="d2d">Knocking</option>
-          <option value="flyer">Door Hangers</option>
-        </select>
-      </span>
-      <button id="permitsBtn" title="Track permit requirements per zip/FSA">Permits</button>
+      <button id="permitsBtn" title="Track permit requirements per zip/FSA">Edit Permits</button>
     </span>
     <button id="settingsBtn" class="hidden" popovertarget="settingsPanel" title="Map display options">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -504,7 +497,10 @@
   <div class="ticks"><span id="tLow"></span><span id="tMid"></span><span id="tHigh"></span></div>
   <div class="none"><i></i> no value</div>
   <div id="permitLegend" class="hidden">
-    <b id="permitLegendTitle"></b>
+    <select id="permitAct" title="Which permit rule colors the map: knocking or door hanger requirements">
+      <option value="d2d">Knocks</option>
+      <option value="flyer">Door Hangers</option>
+    </select>
     <div class="sw"><i style="background:#00653A"></i> no permit needed</div>
     <div class="sw"><i style="background:#F2BB2A"></i> permit / conditional</div>
     <div class="sw"><i style="background:#DC2626"></i> prohibited</div>
@@ -919,7 +915,6 @@ function loadRows(data, fname) {
   $("settingsBtn").classList.remove("hidden");
   $("tourBtn").classList.remove("hidden");
   if (!TOUR_DONE) setTimeout(() => tourStep(0), 400); // first open: walk through the controls
-  syncPermitAct();
   $("drop").classList.add("hidden");
 
   const bits = [`${data.length} rows`, `<span id="shownCount">${rows.length}</span> on map`];
@@ -962,7 +957,6 @@ function applyControls() {
     UNITS = us > rows.length - us ? "us" : "metric";
   }
   $("unitSel").value = UNITS;
-  syncPermitAct();
 }
 function savePrefs() {
   try {
@@ -985,11 +979,11 @@ const TOUR = [
   { t: "#metricWrap", ti: "Pick your primary metric", b: "Pick any metric and the whole map recolors instantly: sales, knocks, close rates, whatever drives your decisions. Colors, sizes and popups all follow along." },
   { t: "#map", ti: "Click any area for the full story", b: "Hotspots and gaps jump out at a glance. Click a zip / FSA for its complete numbers, scroll to zoom, drag to pan." },
   { t: "#settingsPanel", panel: true, ti: "Make the map yours", b: "The Settings button (top right) opens this panel: color scales that keep outliers from washing out the map, log scales for skewed data, a filter that drops low-activity areas, and area units (km² or sq mi)." },
-  { t: "#permGrp", ti: "Permit Requirements Documentation", b: "Flip to the Permits view to recolor the map by each area's requirement at a glance. The Permits button opens the rule tracker for every jurisdiction." },
-  { t: "#permitDialog", dlg: true, ti: "The rule tracker", b: "One record per jurisdiction: the codes it covers, the requirement for knocks and door hangers, fees, and where you verified it. It all saves automatically to this browser, or save a file to share with another computer." },
+  { t: "#permGrp", t2: [["#viewPermBtn", 1000], ["#permitLegend", 2000]], ti: "Permit Requirements Documentation", b: "Flip to the Permits view to recolor the map by each area's requirement at a glance. The legend on the map switches between knocks and door hangers; the Edit Permits button opens the rule tracker for every jurisdiction." },
+  { t: "#permitsBtn", t2: [["#permitsBtn", 1000], ["#permitDialog", 2000]], ti: "The rule tracker", b: "One record per jurisdiction: the codes it covers, the requirement for knocks and door hangers, fees, and where you verified it. It all saves automatically to this browser, or save a file to share with another computer." },
   { t: "#tourBtn", ti: "Your compass home", b: "Whenever you want this walkthrough again, the compass button brings it right back." }
 ];
-let tourI = -1, tourPanel = false, tourDlg = false, TOUR_DONE = false;
+let tourI = -1, tourPanel = false, tourDlg = false, tourT2 = 0, tourFlipped = false, TOUR_DONE = false;
 try { TOUR_DONE = !!JSON.parse(localStorage.getItem("dkm-prefs") || "{}").tourDone; } catch (e) { /* file:// quirks */ }
 
 function tourPop(el, show) {
@@ -1005,28 +999,49 @@ function tourEnd() {
   panel.popover = "auto"; // back to normal: click-away closes it outside the tour
   tourPanel = false;
   if (tourDlg) { maybeClosePermits(); tourDlg = false; }
+  if (tourFlipped) { setView(false); tourFlipped = false; } // undo the step-6 demo flip: leave the map where the user had it
   TOUR_DONE = true; savePrefs(); // never auto-run again
+}
+function tourPlacePermitDlg() { // beside the centered card, 50px gap; margin reset or the UA dialog centering re-ignores left
+  const d = $("permitDialog"), cw = $("tourCard").offsetWidth || 340;
+  d.style.left = Math.max(8, (innerWidth - cw) / 2 - 50 - d.offsetWidth) + "px";
+  d.style.top = Math.max(8, (innerHeight - d.offsetHeight) / 2) + "px";
+  d.style.margin = "0";
+}
+function permitClickDemo() { // phase 1 of the view-toggle step: visibly press the toggle's Permits half; that press IS the flip
+  const b = $("viewPermBtn");
+  b.classList.add("pressed");
+  setTimeout(() => b.classList.remove("pressed"), 350);
+  if (!PERMIT_VIEW) { setView(true); tourFlipped = true; } // restored by tourEnd, only if the tour itself flipped it
+}
+function editPermitsClickDemo() { // phase 1 of the rule-tracker step: press Edit Permits; that press opens the tracker beside the card
+  const b = $("permitsBtn");
+  b.classList.add("pressed");
+  setTimeout(() => b.classList.remove("pressed"), 350);
+  openPermitEditor("");
+  tourPlacePermitDlg();
+  tourDlg = true; // the form is the tour's now: tourEnd closes it, other steps must not
 }
 function tourStep(i) {
   tourI = i;
+  tourT2 = 0; // t2 phases restart with each step
   const s = TOUR[i], card = $("tourCard");
+  if (tourDlg && i !== 6) { maybeClosePermits(); tourDlg = false; } // leaving the rule-tracker step: its form goes too
+  // phased follow-ups: view-toggle step presses the Permits half (the real flip), then points at the legend picker;
+  // rule-tracker step presses Edit Permits (really opening the form) while the highlight stays on the button another
+  // second, then the spotlight moves onto the form
+  if (s.t2) s.t2.forEach(([sel, ms], k) => setTimeout(() => {
+    if (tourI !== i || tourT2 !== k) return;
+    tourT2 = k + 1;
+    if (sel === "#viewPermBtn") permitClickDemo();
+    else if (sel === "#permitsBtn") editPermitsClickDemo();
+    tourPlace();
+  }, ms));
   $("settingsPanel").popover = "manual"; // tour owns the panel: button clicks on the card must not light-dismiss it
   if (!!s.panel !== tourPanel) { // restack so veil/spot/card paint above the open panel in the top layer
     ["tourCard", "tourSpot", "tourVeil"].forEach(id => tourPop($(id), false));
     tourPop($("settingsPanel"), !!s.panel);
     tourPanel = !!s.panel;
-  }
-  if (!!s.dlg !== tourDlg) { // the permit form is a <dialog>, not a popover: no restacking needed, the top-layer trio already paints above it
-    if (s.dlg) {
-      openPermitEditor("");
-      const d = $("permitDialog"), cw = $("tourCard").offsetWidth || 340;
-      // card stays centered; the form sits to its left with a ~50px gap (clamped to the screen edge on narrow windows)
-      d.style.left = Math.max(8, (innerWidth - cw) / 2 - 50 - d.offsetWidth) + "px";
-      d.style.top = Math.max(8, (innerHeight - d.offsetHeight) / 2) + "px";
-      d.style.margin = "0"; // UA dialog centering (inset 0 + margin auto) would re-ignore our left otherwise; same trick as placePermitDlg
-    }
-    else maybeClosePermits();
-    tourDlg = !!s.dlg;
   }
   ["tourVeil", "tourSpot", "tourCard"].forEach(id => tourPop($(id), true));
   card.querySelector(".cnt").textContent = `Step ${i + 1} of ${TOUR.length}`;
@@ -1040,7 +1055,8 @@ function tourStep(i) {
 function tourPlace() { // moves the cutout only; the card stays centered on screen
   if (tourI < 0) return;
   const s = TOUR[tourI], spot = $("tourSpot"), card = $("tourCard");
-  const el = s.t ? document.querySelector(s.t) : null;
+  const tSel = s.t2 && tourT2 ? s.t2[Math.min(tourT2, s.t2.length) - 1][0] : s.t; // later phases follow the t2 chain
+  const el = tSel ? document.querySelector(tSel) : null;
   if (el) el.scrollIntoView({ block: "center" });
   const r = el ? el.getBoundingClientRect() : null;
   if (r && r.width > 0) {
@@ -1237,7 +1253,6 @@ function draw() {
   $("legendTitle").classList.toggle("hidden", permitMode);
   for (const el of $("legend").querySelectorAll(".bar,.ticks,.none")) el.classList.toggle("hidden", permitMode);
   $("permitLegend").classList.toggle("hidden", !permitMode);
-  if (permitMode) $("permitLegendTitle").textContent = `Permits: ${permitAct === "d2d" ? "Knocks" : "Door Hangers"}`;
 
   // rows that can never draw: no boundary polygon and no centroid (typos, retired codes),
   // plus rows skipped at load with no readable zip -- one "not found" widget covers both.
@@ -1361,12 +1376,10 @@ function togglePin(m) {
 let editingCode = null;
 let permitSel = null; // record id whose codes get the selection stroke on the map
 let PERMIT_VIEW = false; // true = categorical permit coloring instead of the metric ramp (header Results/Permits toggle)
-function syncPermitAct() { $("permitActWrap").classList.toggle("hidden", !PERMIT_VIEW); }
 function setView(permits) {
   PERMIT_VIEW = permits;
   $("viewResBtn").classList.toggle("on", !permits);
   $("viewPermBtn").classList.toggle("on", permits);
-  syncPermitAct();
   draw(); // draw's savePrefs persists pOn
 }
 $("viewResBtn").addEventListener("click", () => PERMIT_VIEW && setView(false));
