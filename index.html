@@ -1320,10 +1320,16 @@ function draw() {
 
   const sc = $("shownCount"); if (sc) sc.textContent = shown.length - nf.length;
   savePrefs();
-  if (fitPending && bounds.isValid()) { // once per CSV: fit the data, or land on the restored session view
-    if (restoreView) { map.setView([restoreView[0], restoreView[1]], restoreView[2]); restoreView = null; }
-    else map.fitBounds(bounds.pad(0.15));
-    fitPending = false;
+  if (fitPending) { // once per CSV: land the viewport, or honor the restored session view
+    if (restoreView) { map.setView([restoreView[0], restoreView[1]], restoreView[2]); restoreView = null; fitPending = false; }
+    else {
+      const pts = shown.map(r => CENTROIDS[r.code]).filter(Boolean);
+      if (pts.length) { // bulk of the data: median centroid (one outlier zip can't drag the view), zoomed out 7 from full
+        const med = a => a.slice().sort((x, y) => x - y)[a.length >> 1];
+        map.setView([med(pts.map(p => p[0])), med(pts.map(p => p[1]))], map.getMaxZoom() - 7);
+        fitPending = false;
+      } else if (bounds.isValid()) { map.fitBounds(bounds.pad(0.15)); fitPending = false; } // boundary-only codes
+    }
   }
 }
 
