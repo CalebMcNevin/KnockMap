@@ -115,4 +115,4 @@ Default section order:
 ## Child DOX Index
 
 - `data/AGENTS.md` — raw downloaded geo/census sources and extracted shapefiles (gitignored build inputs)
-- Root-owned files: `index.html`, `build_centroids.py`, `build_boundaries.py`, `build_census_homes.py`, generated `centroids.js`/`boundaries.js`/`census_homes.js`, `README.txt`, `example.csv`, `sample_report.csv`, `demo_chicago_From_Apr_1_2026_To_Sep_20_2026.csv` (generated demo report, 47 real Chicago-area ZCTAs; season badge parses from the filename), the three WEMMS screenshots (`door-knocking.png`, `zip-fsa-report.png`, `report-settings.png`), `.gitignore`, `.env` (key only, never content)
+- Root-owned files: `index.html`, `build_centroids.py`, `build_boundaries.py`, `build_census_homes.py`, generated `centroids.js`/`boundaries.js`/`census_homes.js`, `README.txt`, `example.csv`, `demo_chicago_From_Apr_1_2026_To_Sep_20_2026.csv` (generated demo report, 47 real Chicago-area ZCTAs; season badge parses from the filename), the three WEMMS screenshots (`door-knocking.png`, `zip-fsa-report.png`, `report-settings.png`), `.gitignore`, `.env` (key only, never content)

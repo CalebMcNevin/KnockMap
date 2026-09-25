@@ -578,22 +578,18 @@ function toNum(v) {
   const n = parseFloat(String(v).replace(/[,$%\s]/g, ""));
   return isFinite(n) ? n : null;
 }
-function fmt(n) {
+function fmt(n, dp = 2) {
   if (n == null) return "n/a";
   return n >= 100 || Number.isInteger(n)
     ? Math.round(n).toLocaleString()
-    : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    : n.toLocaleString(undefined, { maximumFractionDigits: dp });
 }
 // derived conversion rates named without "rate" to match the report's wording; get % display + Rates group
 const RATE_COLS = new Set(["SalesPerLead", "LeadsPerContact", "SalesPerContact"]);
 const isPctCol = c => /pct|percent|rate/i.test(c) || RATE_COLS.has(c);
 const isMoneyCol = c => /amount|revenue/i.test(c); // NOT "sale" -- SalesPer100HomesKnocked isn't dollars
-const fmtM = (c, v) => (isMoneyCol(c) ? "$" : "") + fmt(v) + (isPctCol(c) ? "%" : "");
-const fmtTick = (c, v) => { // legend: compact — 1 decimal max, integers for big values
-  if (v == null) return "n/a";
-  const r = Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
-  return (isMoneyCol(c) ? "$" : "") + r.toLocaleString() + (isPctCol(c) ? "%" : "");
-};
+const fmtM = (c, v, dp) => (isMoneyCol(c) ? "$" : "") + fmt(v, dp) + (isPctCol(c) ? "%" : "");
+const fmtTick = (c, v) => fmtM(c, v, 1); // legend: compact — 1 decimal max, integers for big values
 function pct(sorted, p) {
   if (!sorted.length) return 0;
   return sorted[Math.min(sorted.length - 1, Math.floor(p * (sorted.length - 1)))];
@@ -637,11 +633,11 @@ function banner(msg, ok) {
 }
 
 // ---- CSV loading ---------------------------------------------------------
-function handleFile(file, input) {
+function handleFile(file, input, cb, err = "Could not read that file. Is it a valid CSV?") { // shared by the report, customer, and permit-JSON pickers
   const done = () => { if (input) input.value = ""; }; // only after the read finishes: clearing mid-read aborts the file data
   const rd = new FileReader();
-  rd.onload = () => { done(); parseReport(rd.result, file.name); };
-  rd.onerror = () => { done(); banner("Could not read that file. Is it a valid CSV?"); };
+  rd.onload = () => { done(); cb(rd.result, file.name); };
+  rd.onerror = () => { done(); banner(err); };
   rd.readAsText(file);
 }
 function parseReport(text, name) { // parse + remember, so a reload restores the last report
@@ -756,12 +752,12 @@ function hatch(color) {
   }
   return HATCH[color];
 }
-function optgroupHtml(cols, selected) {
+function optgroupHtml(cols) {
   const groups = {};
   for (const h of cols) if (!HIDDEN_DISPLAY.has(h) && !HIDDEN_DROPDOWN.has(h) && !unitHidden(h)) (groups[classifyCol(h)] = groups[classifyCol(h)] || []).push(h);
   return groupOrder().filter(g => groups[g])
     .map(g => `<optgroup label="${g}">` +
-      groups[g].map(h => `<option value="${esc(h)}"${h === selected ? " selected" : ""}>${esc(dispName(h))}</option>`).join("") +
+      groups[g].map(h => `<option value="${esc(h)}">${esc(dispName(h))}</option>`).join("") +
       `</optgroup>`)
     .join("");
 }
@@ -778,6 +774,7 @@ function parseSeason(fname) {
 }
 
 // dwelling density from boundary geometry (needs BOUNDARIES, which lazy-loads after the first CSV)
+const setV = (r, k, v) => { r.raw[k] = String(v); r.vals[k] = v; }; // derived columns live in both views: raw (popup/filter) and vals (math)
 function deriveDensity() {
   if (typeof BOUNDARIES === "undefined" || !rows.length) return false;
   const added = new Set();
@@ -787,14 +784,11 @@ function deriveDensity() {
     if (!polys) continue;
     const km2 = polys.reduce((s, p) => s + polyAreaM2(p), 0) / 1e6;
     if (!km2) continue;
-    r.raw.AreaKm2 = String(Math.round(km2 * 100) / 100); r.vals.AreaKm2 = Math.round(km2 * 100) / 100;
-    r.raw.AreaSqMile = String(Math.round(km2 / 2.58998811 * 100) / 100); r.vals.AreaSqMile = Math.round(km2 / 2.58998811 * 100) / 100;
+    setV(r, "AreaKm2", Math.round(km2 * 100) / 100); setV(r, "AreaSqMile", Math.round(km2 / 2.58998811 * 100) / 100);
     added.add("AreaKm2"); added.add("AreaSqMile");
     const homes = typeof CENSUS_HOMES !== "undefined" ? CENSUS_HOMES[r.code] : undefined;
     if (homes) {
-      const pk = Math.round(homes / km2 * 10) / 10, pm = Math.round(homes * 2.58998811 / km2 * 10) / 10;
-      r.raw.HomesPerKm2 = String(pk); r.vals.HomesPerKm2 = pk;
-      r.raw.HomesPerSqMile = String(pm); r.vals.HomesPerSqMile = pm;
+      setV(r, "HomesPerKm2", Math.round(homes / km2 * 10) / 10); setV(r, "HomesPerSqMile", Math.round(homes * 2.58998811 / km2 * 10) / 10);
       added.add("HomesPerKm2"); added.add("HomesPerSqMile");
     }
     for (const src of ["ContactCount", "LeadCount", "OrderCount", "OrderAmount"]) { // outcome densities, both unit families
@@ -802,7 +796,7 @@ function deriveDensity() {
       if (v == null) continue;
       const stem = src === "OrderAmount" ? "Revenue" : src.replace("Count", "");
       for (const [suffix, d] of [["PerKm2", Math.round(v / km2 * 10) / 10], ["PerSqMile", Math.round(v * 2.58998811 / km2 * 10) / 10]]) {
-        r.raw[stem + suffix] = String(d); r.vals[stem + suffix] = d; added.add(stem + suffix);
+        setV(r, stem + suffix, d); added.add(stem + suffix);
       }
     }
   }
@@ -828,7 +822,6 @@ function refreshSelectors() { // (re)build metric + filter dropdowns; applyContr
 
 let noZip = 0, noZipVals = new Map(); // skipped-row raw values, merged into the not-found dropdown at draw time
 function loadRows(data, fname) {
-  const col = i => Object.keys(i)[0];
   if (!data.length) return banner(`"${fname}" appears to be empty.`);
   const headers = Object.keys(data[0]);
   const zipCol = headers.find(h => h.toLowerCase().replace(/[\s_]/g, "") === "ziporfsa");
@@ -855,8 +848,8 @@ function loadRows(data, fname) {
     const lc = rec.vals.LeadCount;
     if (!lc) continue;
     const oc = rec.vals.OrderCount, oa = rec.vals.OrderAmount;
-    if (oc != null) { const v = Math.round(oc / lc * 10000) / 100; rec.raw.SalesPerLead = String(v); rec.vals.SalesPerLead = v; perLeadHits++; }
-    if (oa != null) { const v = Math.round(oa / lc * 100) / 100; rec.raw.AvgRevenuePerLead = String(v); rec.vals.AvgRevenuePerLead = v; }
+    if (oc != null) { setV(rec, "SalesPerLead", Math.round(oc / lc * 10000) / 100); perLeadHits++; }
+    if (oa != null) { setV(rec, "AvgRevenuePerLead", Math.round(oa / lc * 100) / 100); }
   }
   if (perLeadHits) {
     if (headers.includes("OrderCount")) headers.push("SalesPerLead");
@@ -869,8 +862,8 @@ function loadRows(data, fname) {
     const cc = rec.vals.ContactCount;
     if (!cc) continue;
     const lc = rec.vals.LeadCount, oc = rec.vals.OrderCount;
-    if (lc != null) { const v = Math.round(lc / cc * 10000) / 100; rec.raw.LeadsPerContact = String(v); rec.vals.LeadsPerContact = v; }
-    if (oc != null) { const v = Math.round(oc / cc * 10000) / 100; rec.raw.SalesPerContact = String(v); rec.vals.SalesPerContact = v; perContactHits++; }
+    if (lc != null) { setV(rec, "LeadsPerContact", Math.round(lc / cc * 10000) / 100); }
+    if (oc != null) { setV(rec, "SalesPerContact", Math.round(oc / cc * 10000) / 100); perContactHits++; }
   }
   if (perContactHits) {
     if (headers.includes("LeadCount")) headers.push("LeadsPerContact");
@@ -882,8 +875,8 @@ function loadRows(data, fname) {
   if (headers.includes("KnockCount") && headers.includes("OrderAmount")) for (const rec of rows) {
     const kc = rec.vals.KnockCount, oa = rec.vals.OrderAmount;
     if (!kc || oa == null) continue;
-    const v = Math.round(oa / kc * 10000) / 100;
-    rec.raw.RevenuePer100Knocks = String(v); rec.vals.RevenuePer100Knocks = v; rpkHits++;
+    setV(rec, "RevenuePer100Knocks", Math.round(oa / kc * 10000) / 100);
+    rpkHits++;
   }
   if (rpkHits) headers.push("RevenuePer100Knocks");
 
@@ -894,17 +887,11 @@ function loadRows(data, fname) {
     const homes = typeof CENSUS_HOMES !== "undefined" ? CENSUS_HOMES[rec.code] : undefined;
     if (!homes) continue;
     censusHits++;
-    rec.raw.CensusHomes = String(homes); rec.vals.CensusHomes = homes;
+    setV(rec, "CensusHomes", homes);
     const kc = rec.vals.KnockCount;
-    if (hasKnock && kc != null) {
-      const p = Math.round(kc / homes * 10000) / 100;
-      rec.raw.PercentageOfCensusHomesKnocked = String(p); rec.vals.PercentageOfCensusHomesKnocked = p;
-    }
+    if (hasKnock && kc != null) setV(rec, "PercentageOfCensusHomesKnocked", Math.round(kc / homes * 10000) / 100);
     const hc = rec.vals.HomeCount;
-    if (hasHomes && hc != null) {
-      const cov = Math.round(hc / homes * 10000) / 100;
-      rec.raw.AddressCoveragePct = String(cov); rec.vals.AddressCoveragePct = cov;
-    }
+    if (hasHomes && hc != null) setV(rec, "AddressCoveragePct", Math.round(hc / homes * 10000) / 100);
   }
   if (censusHits) {
     headers.push("CensusHomes");
@@ -1128,23 +1115,16 @@ function applyCustomerCols() {
   for (const r of rows) {
     const n = CUSTOMERS[r.code];
     if (n == null) continue;
-    r.raw.CustomerCount = String(n); r.vals.CustomerCount = n; added.add("CustomerCount");
+    setV(r, "CustomerCount", n); added.add("CustomerCount");
     const homes = $("penDen").value === "homes" ? r.vals.HomeCount : r.vals.CensusHomes;
-    if (homes > 0) { const p = Math.round(n / homes * 10000) / 100; r.raw.CustomerPenetrationPct = String(p); r.vals.CustomerPenetrationPct = p; added.add("CustomerPenetrationPct"); }
+    if (homes > 0) { setV(r, "CustomerPenetrationPct", Math.round(n / homes * 10000) / 100); added.add("CustomerPenetrationPct"); }
   }
   for (const h of added) if (!csvHeaders.includes(h)) csvHeaders.push(h);
   return added.size > 0;
 }
 $("custFile").addEventListener("change", e => {
   if (!CUSTOMERS_ENABLED) return;
-  const f = e.target.files[0];
-  if (!f) { e.target.value = ""; return; }
-  const input = e.target;
-  const done = () => { input.value = ""; }; // only after the read finishes: clearing mid-read aborts the file data
-  const rd = new FileReader();
-  rd.onload = () => { done(); loadCustomersText(rd.result, f.name); };
-  rd.onerror = () => { done(); banner("Could not read that file. Is it a valid CSV?"); };
-  rd.readAsText(f);
+  if (e.target.files[0]) handleFile(e.target.files[0], e.target, loadCustomersText);
 });
 function loadCustomersText(text, fname) { // parse + remember, so a reload restores the last customer list
   try { localStorage.setItem("dkm-customers", JSON.stringify({ name: fname, text })); }
@@ -1242,6 +1222,14 @@ function draw() {
     const v = r.vals[metricCol];
     return v == null || hi === lo ? null : Math.max(0, Math.min(1, norm(v)));
   }
+  function wire(sh, r, tipOpts) { // shared polygon/circle wiring: tooltip, popup, pick-mode click, row tag
+    sh.bindTooltip(tipTxt(r), tipOpts)
+      .bindPopup(() => popupHtml(r), { maxWidth: 420 }) // function, not string: rebuilt fresh on every open so pins apply globally
+      .on("click", () => pickPermit && togglePermitCode(r.code))
+      .addTo(layer);
+    sh.row = r; // popup re-render on pin toggle needs the row back
+    return sh;
+  }
 
   for (const r of shown) {
     const t = tOf(r);
@@ -1253,26 +1241,16 @@ function draw() {
     if (polys) {
       // one multipolygon layer per code (poly = [outer, holes...]): all disjoint parts hover/highlight together
       const style = { color: isSel ? PERMIT_SEL_STROKE : "#7A9189", weight: isSel ? 3 : 0.75, fillColor: hfill, fillOpacity: isSel ? 0.8 : 0.55 }; // wm-neutral-400 stroke
-      const p = L.polygon(polys, style)
-        .bindTooltip(tipTxt(r), { sticky: true })
-        .bindPopup(() => popupHtml(r), { maxWidth: 420 }) // function, not string: rebuilt fresh on every open so pins apply globally
+      const p = wire(L.polygon(polys, style), r, { sticky: true })
         .on("mouseover", permitMode ? e => hl(e.target.grp, true) : e => e.target.setStyle({ ...e.target.base, weight: 2.5, fillOpacity: 0.85 })) // area highlight, not just edge: complicated shapes need the fill to pop
-        .on("mouseout", permitMode ? e => { if (openPopup && e.target.grp.includes(openPopup._source)) return; hl(e.target.grp, false); } : e => { if (openPopup?._source === e.target) return; e.target.setStyle(e.target.base); }) // pinned shape keeps its highlight while its popup is open
-        .on("click", () => pickPermit && togglePermitCode(r.code))
-        .addTo(layer);
-      p.row = r; // popup re-render on pin toggle needs the row back
+        .on("mouseout", permitMode ? e => { if (openPopup && e.target.grp.includes(openPopup._source)) return; hl(e.target.grp, false); } : e => { if (openPopup?._source === e.target) return; e.target.setStyle(e.target.base); }); // pinned shape keeps its highlight while its popup is open
       p.base = style; // hover restore keeps the selection stroke
       bounds.extend(p.getBounds());
     } else if (CENTROIDS[r.code] && (boundaryState === "failed" || haveBounds)) { // circles only once we KNOW there's no polygon: never flash circles before the geometry pops in
-      const cm = L.circleMarker(CENTROIDS[r.code], {
+      const cm = wire(L.circleMarker(CENTROIDS[r.code], {
         radius: 5 + 16 * (t == null ? 0.15 : Math.sqrt(t)),
         color: isSel ? PERMIT_SEL_STROKE : fill, weight: isSel ? 3 : 1, fillColor: hfill, fillOpacity: isSel ? 0.8 : 0.55
-      })
-        .bindTooltip(tipTxt(r))
-        .bindPopup(() => popupHtml(r), { maxWidth: 420 })
-        .on("click", () => pickPermit && togglePermitCode(r.code))
-        .addTo(layer);
-      cm.row = r;
+      }), r);
       cm.base = cm.options;
       if (permitMode) cm.on("mouseover", e => hl(e.target.grp, true)).on("mouseout", e => { if (openPopup && e.target.grp.includes(openPopup._source)) return; hl(e.target.grp, false); });
       bounds.extend(CENTROIDS[r.code]);
@@ -1338,7 +1316,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c =>
 function cellVal(k, v) { // dirty data: clamp very long values (e.g. CityList) behind a toggle
   const s = String(v).trim();
   const n = toNum(s);
-  const shown = n != null ? (isMoneyCol(k) ? "$" : "") + fmt(n) + (isPctCol(k) ? "%" : "") : s;
+  const shown = n != null ? fmtM(k, n) : s;
   return s.length > 120
     ? `<details><summary>${esc(s.slice(0, 100))}… (${s.length.toLocaleString()} chars)</summary>` +
        `<div style="margin-top:4px;max-width:250px;white-space:pre-wrap">${esc(s)}</div></details>`
@@ -1388,7 +1366,7 @@ function popupHtml(r) {
 // ---- wiring --------------------------------------------------------------
 $("drop").addEventListener("click", () => $("file").click());
 $("uploadAgain").addEventListener("click", () => $("file").click());
-$("file").addEventListener("change", e => { if (e.target.files[0]) handleFile(e.target.files[0], e.target); });
+$("file").addEventListener("change", e => { if (e.target.files[0]) handleFile(e.target.files[0], e.target, parseReport); });
 $("metric").addEventListener("change", e => { metricCol = e.target.value; draw(); });
 // pin toggling from popups (delegated: popup content is rebuilt as HTML strings)
 let openPopup = null;
@@ -1430,13 +1408,14 @@ function setView(permits) {
 $("viewResBtn").addEventListener("click", () => PERMIT_VIEW && setView(false));
 $("viewPermBtn").addEventListener("click", () => !PERMIT_VIEW && setView(true));
 const PERMIT_FIELDS = [["pJur", "jurisdiction"], ["pHours", "hours"], ["pFeeIndiv", "feeIndiv"], ["pFeeBiz", "feeBiz"], ["pProc", "processing"], ["pAppUrl", "appUrl"], ["pNotes", "notes"], ["pSource", "source"], ["pVerified", "verified"]];
+const parseCodes = s => s.toUpperCase().split(/[\s,;]+/).filter(Boolean); // match row-code normalization
 function renderPermitList() {
   $("permitList").innerHTML = Object.entries(PERMITS).sort((a, b) => (a[1].jurisdiction || "").localeCompare(b[1].jurisdiction || "")).map(([id, r]) =>
     `<div${id === editingCode ? ' class="sel"' : ""} data-i="${esc(id)}"><i style="background:${PERMIT_COLORS[r.d2d] || "#7A9189"}"></i><b>${esc(r.codes.join(", "))}</b> — ${esc(r.jurisdiction || "no jurisdiction set")}</div>`).join("");
 }
 function permitFormState() { // the form exactly as Save would store it (codes normalized + sorted)
   const s = {
-    codes: $("pCode").value.toUpperCase().split(/[\s,;]+/).filter(Boolean).sort().join(","),
+    codes: parseCodes($("pCode").value).sort().join(","),
     d2d: $("pD2d").value, flyer: $("pFlyer").value,
     gotD2d: $("pGotD2d").checked, gotFlyer: $("pGotFlyer").checked,
   };
@@ -1447,17 +1426,18 @@ function syncPermitSave() { // Save lights up while the form differs from the st
   const cur = permitFormState();
   const p = PERMITS[editingCode];
   // ref defaults every missing key like loadPermitForm does: imported/legacy records without optional keys must not read as dirty
-  const ref = p
-    ? { codes: [...p.codes].sort().join(","), d2d: p.d2d || "unknown", flyer: p.flyer || "unknown",
-        gotD2d: !!p.gotD2d, gotFlyer: !!p.gotFlyer, jurisdiction: p.jurisdiction || "", hours: p.hours || "",
-        feeIndiv: p.feeIndiv || "", feeBiz: p.feeBiz || "", processing: p.processing || "", appUrl: p.appUrl || "",
-        notes: p.notes || "", source: p.source || "", verified: p.verified || "" }
-    : { codes: "", d2d: "unknown", flyer: "unknown", gotD2d: false, gotFlyer: false, jurisdiction: "", hours: "", feeIndiv: "", feeBiz: "", processing: "", appUrl: "", notes: "", source: "", verified: "" };
+  const ref = { codes: "", d2d: "unknown", flyer: "unknown", gotD2d: false, gotFlyer: false, ...Object.fromEntries(PERMIT_FIELDS.map(([, k]) => [k, ""])) };
+  if (p) {
+    ref.codes = [...p.codes].sort().join(",");
+    ref.d2d = p.d2d || "unknown"; ref.flyer = p.flyer || "unknown";
+    ref.gotD2d = !!p.gotD2d; ref.gotFlyer = !!p.gotFlyer;
+    for (const [, k] of PERMIT_FIELDS) ref[k] = p[k] || "";
+  }
   $("permitSave").classList.toggle("hot", Object.keys(cur).some(k => cur[k] !== ref[k]));
 }
 function syncLive(redraw = true) { // the map renders the form's unsaved codes + statuses (LIVE_REC overlays the stored records)
   const rec = {
-    codes: $("pCode").value.toUpperCase().split(/[\s,;]+/).filter(Boolean),
+    codes: parseCodes($("pCode").value),
     d2d: $("pD2d").value, flyer: $("pFlyer").value,
     gotD2d: $("pGotD2d").checked, gotFlyer: $("pGotFlyer").checked
   };
@@ -1514,7 +1494,7 @@ function openPermitEditor(code) {
 $("permitsBtn").addEventListener("click", () => openPermitEditor(""));
 $("permitNewBtn").addEventListener("click", () => permitGuard(() => loadPermitForm("")));
 function savePermitForm() {
-  const codes = $("pCode").value.toUpperCase().split(/[\s,;]+/).filter(Boolean); // match row-code normalization
+  const codes = parseCodes($("pCode").value); // match row-code normalization
   if (!codes.length) { banner("A permit record needs at least one zip/FSA code."); return false; }
   const id = editingCode || "p" + Date.now().toString(36);
   PERMITS[id] = {
@@ -1559,7 +1539,7 @@ function togglePickPermit() {
 }
 function togglePermitCode(code) { // pick-mode click: membership toggle in the codes field, marks the form dirty
   const inp = $("pCode");
-  const codes = inp.value.toUpperCase().split(/[\s,;]+/).filter(Boolean);
+  const codes = parseCodes(inp.value);
   const i = codes.indexOf(code);
   i >= 0 ? codes.splice(i, 1) : codes.push(code);
   inp.value = codes.join(", ");
@@ -1620,42 +1600,36 @@ $("permitImportBtn").addEventListener("click", () => $("permitFile").click());
 $("permitFile").addEventListener("change", e => {
   const f = e.target.files[0];
   if (!f) { e.target.value = ""; return; }
-  const rd = new FileReader();
-  const reset = () => { e.target.value = ""; }; // only after the read finishes: clearing mid-read aborts the file data
-  rd.onload = () => {
-    reset();
+  handleFile(f, e.target, text => {
     try {
-      const j = JSON.parse(rd.result);
+      const j = JSON.parse(text);
       let n = 0;
       for (const [k, v] of Object.entries(j)) if (v && typeof v === "object" && Array.isArray(v.codes)) { PERMITS[k] = v; n++; } // merge: import overwrites same record ids
       if (!n) return banner("No permit records found in that file. Expected a file created by the Save button.");
       savePermits(); renderPermitList(); draw();
       banner(`Imported ${n} permit record${n === 1 ? "" : "s"}.`, true);
     } catch (err) { banner("Could not read that file as permit JSON."); }
-  };
-  rd.onerror = () => { reset(); banner("Could not read that file as permit JSON."); };
-  rd.readAsText(f);
+  }, "Could not read that file as permit JSON.");
 });
-$("permitExportBtn").addEventListener("click", () => {
+const dl = (name, mime, text) => { // client-side download of a generated file
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(PERMITS, null, 2)], { type: "application/json" }));
-  a.download = "dkm-permits.json";
-  a.click();
+  a.href = URL.createObjectURL(new Blob([text], { type: mime }));
+  a.download = name; a.click();
   URL.revokeObjectURL(a.href);
+};
+$("permitExportBtn").addEventListener("click", () => {
+  dl("dkm-permits.json", "application/json", JSON.stringify(PERMITS, null, 2));
 });
 $("permitCsvBtn").addEventListener("click", () => { // spreadsheet export: one row per record, codes joined by "; ", human-readable statuses
-  const q = v => { v = String(v ?? ""); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-  const lines = Object.values(PERMITS).sort((a, b) => (a.jurisdiction || "").localeCompare(b.jurisdiction || "")).map(r =>
+  const data = Object.values(PERMITS).sort((a, b) => (a.jurisdiction || "").localeCompare(b.jurisdiction || "")).map(r =>
     [(r.codes || []).join("; "), PERMIT_LABEL[r.d2d] || "Unknown", r.gotD2d ? "yes" : "",
      PERMIT_LABEL[r.flyer] || "Unknown", r.gotFlyer ? "yes" : "",
      r.jurisdiction || "", r.hours || "", r.feeIndiv || "", r.feeBiz || "", r.processing || "",
-     r.appUrl || "", r.notes || "", r.source || "", r.verified || ""].map(q).join(","));
-  const csv = "Zips/FSAs,Knocking,Knocking obtained,Door Hangers,Door Hangers obtained,Jurisdiction,Allowed hours,Individual fee,Business fee,Processing,Application URL,Notes,Source URL,Last verified\n" + lines.join("\n");
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-  a.download = "dkm-permits.csv";
-  a.click();
-  URL.revokeObjectURL(a.href);
+     r.appUrl || "", r.notes || "", r.source || "", r.verified || ""]);
+  dl("dkm-permits.csv", "text/csv", Papa.unparse({
+    fields: ["Zips/FSAs", "Knocking", "Knocking obtained", "Door Hangers", "Door Hangers obtained", "Jurisdiction", "Allowed hours", "Individual fee", "Business fee", "Processing", "Application URL", "Notes", "Source URL", "Last verified"],
+    data
+  }));
 });
 $("permitAct").addEventListener("change", draw);
 $("unitSel").addEventListener("change", e => { // rebuild dropdowns and recolor for the new unit family
@@ -1732,7 +1706,7 @@ const drop = $("drop");
   document.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("hover"); }));
 document.addEventListener("drop", e => {
   const f = e.dataTransfer && e.dataTransfer.files[0];
-  if (f) handleFile(f);
+  if (f) handleFile(f, null, parseReport);
 });
 
 // restore the last uploaded report + customer list so a reload doesn't lose the session
