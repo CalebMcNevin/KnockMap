@@ -406,8 +406,8 @@
     <button id="permitExportBtn" title="Save all records to a file you can load here or on another computer">Save</button>
     <button id="permitImportBtn" title="Merge permit records from a file created by the Save button">Load</button>
     <span class="q tipL" data-tip="Records save automatically in this browser and survive reloads and restarts. They are lost if browsing data is cleared or a private window closes, and they stay on this computer: use Save to back them up or move them to another computer.">?</span>
-    <button id="permitCsvBtn" title="Save all records as a spreadsheet-friendly CSV">Export CSV</button>
-    <input type="file" id="permitFile" accept=".json,application/json" class="hidden">
+    <button id="permitCsvBtn" title="Save all records as a spreadsheet you can open in Excel">Export for Excel</button>
+    <input type="file" id="permitFile" accept=".json,.txt,application/json,text/plain" class="hidden">
   </div>
   <hr style="border:none;border-top:1px solid var(--wm-neutral-100);margin:12px 0">
   <div class="frow"><span>Zips / FSAs<span class="q" data-tip="One or more zip / FSA codes, separated by commas or spaces. They all share this one rule. Use Pick on map to add codes by clicking areas. A zip/FSA is not a legal jurisdiction: keep the jurisdiction field pointing at the city or county whose rule this is.">?</span></span><input type="text" id="pCode" placeholder="90210, 90211, 90212" title="One or more codes, separated by commas or spaces"><button id="pPick" type="button" title="Click areas on the map to append their zip / FSA to this record. Click again or press Esc to stop.">Pick on map</button></div>
@@ -688,7 +688,7 @@ const DISPLAY = { // display-only: internal names feed every derivation
   AddressCoveragePct: "Address Coverage %",
   CustomerCount: "Customers", CustomerPenetrationPct: "Customer Penetration %"
 };
-const dispName = h => DISPLAY[h] || h.replace(/([a-z])([A-Z\d])/g, "$1 $2"); // unknown future columns still get spaced
+const dispName = h => DISPLAY[h] || (h || "").replace(/([a-z])([A-Z\d])/g, "$1 $2"); // unknown future columns still get spaced; null-safe pre-report (draw runs before any CSV loads)
 const HIDDEN_DISPLAY = new Set(["NoCount", "AvgRevenuePer100Homes"]); // parsed for filters/math but kept out of dropdown and popups
 const HIDDEN_DROPDOWN = new Set(["AreaKm2", "AreaSqMile"]); // reference-only columns: popup yes, metric dropdown no
 let pinned = new Set(); // internal names pinned from popups; shows in a Pinned group at top of popup + metric dropdown
@@ -1602,7 +1602,7 @@ $("permitFile").addEventListener("change", e => {
   if (!f) { e.target.value = ""; return; }
   handleFile(f, e.target, text => {
     try {
-      const j = JSON.parse(text);
+      const j = JSON.parse(text.replace(/^\uFEFF/, "")); // tolerate a UTF-8 BOM from email/Notepad round-trips (same guard as the CSV path)
       let n = 0;
       for (const [k, v] of Object.entries(j)) if (v && typeof v === "object" && Array.isArray(v.codes)) { PERMITS[k] = v; n++; } // merge: import overwrites same record ids
       if (!n) return banner("No permit records found in that file. Expected a file created by the Save button.");
@@ -1615,7 +1615,7 @@ const dl = (name, mime, text) => { // client-side download of a generated file
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([text], { type: mime }));
   a.download = name; a.click();
-  URL.revokeObjectURL(a.href);
+  setTimeout(() => URL.revokeObjectURL(a.href)); // same-tick revoke can truncate the download to 0 bytes on older Safari
 };
 $("permitExportBtn").addEventListener("click", () => {
   dl("dkm-permits.json", "application/json", JSON.stringify(PERMITS, null, 2));
