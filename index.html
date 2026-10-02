@@ -254,6 +254,13 @@
   #tourActDD div.on { background: var(--wm-neutral-100); font-weight: 600; color: var(--wm-green-700); }
   #tourActDD div.pick { background: var(--wm-green-500); color: #fff; } /* the tour's simulated pick of Knocking */
   @keyframes ddIn { from { opacity: 0; transform: translateY(-4px); } }
+  .fenceLbl { /* fence name badge, shown at deeper zooms; centered on the fence, never intercepts the mouse */
+    position: absolute; left: 0; top: 0; transform: translate(-50%, -50%);
+    white-space: nowrap; pointer-events: none;
+    background: rgba(255,255,255,.88); border: 1px solid var(--wm-neutral-200);
+    border-radius: var(--radius-pill); padding: 0 7px; box-shadow: var(--shadow-sm);
+    font: 600 11px/1.5 "DM Sans", Inter, ui-sans-serif, sans-serif; color: var(--wm-green-700);
+  }
   dialog#permitDialog .frow { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
   dialog#permitDialog[open] { z-index: 1600; inset-block: 0; margin-block: auto; max-height: calc(100vh - 16px); overflow: auto; } /* non-modal: floats above the map panes/popups and the toasts; UA only auto-centers horizontally, inset-block + margin-block add the vertical half */
   dialog#permitDialog h2 { cursor: move; } /* the heading is the drag handle */
@@ -471,6 +478,14 @@
       <option value="metric">Metric (km²)</option>
       <option value="us">US customary (sq mi)</option>
     </select>
+  </div>
+  <div class="row" title="Planning fences from your system's GeoJSON export, drawn under the zip/FSA areas. Loading a new file replaces the current one.">
+    <span>Fences</span>
+    <span class="ctl">
+      <label class="chk hidden" id="fenceShowLbl" title="Show or hide the fence layer"><input type="checkbox" id="fenceShow"> show</label>
+      <button id="fenceBtn" title="Load the GeoJSON fence export from your planning system">Load GeoJSON</button>
+    </span>
+    <input type="file" id="fenceFile" accept=".geojson,.json,.txt" class="hidden">
   </div>
   <div class="row hidden" title="Denominator for Customer Penetration %: census occupied dwellings, or the homes (addresses) counted in the report itself"><span>Penetration vs</span>
     <select id="penDen">
@@ -951,13 +966,15 @@ function applyControls() {
     UNITS = us > rows.length - us ? "us" : "metric";
   }
   $("unitSel").value = UNITS;
+  FENCES_ON = p ? p.fOn !== false : FENCES_ON;
+  $("fenceShow").checked = FENCES_ON;
 }
 function savePrefs() {
   try {
     localStorage.setItem("dkm-prefs", JSON.stringify({
       metric: metricCol, scale: $("scaleMode").value, log: $("logMode").value,
       fCol: $("filterCol").value, fVal: $("filterIn").value,
-      pins: [...pinned], pOn: PERMIT_VIEW, pAct: $("permitAct").value, pDen: $("penDen").value, units: UNITS,
+      pins: [...pinned], pOn: PERMIT_VIEW, pAct: $("permitAct").value, pDen: $("penDen").value, units: UNITS, fOn: FENCES_ON,
       tourDone: TOUR_DONE,
       mv: [map.getCenter().lat, map.getCenter().lng, map.getZoom()] // map view follows along
     }));
@@ -972,7 +989,7 @@ const TOUR = [
   { t: "#uploadsGrp", ti: "Bring in your data", b: "New CSV loads your DK Summary By Zip/FSA report and the map builds itself: boundaries, home counts, every metric. The ? button walks you through exporting the report, step by step." },
   { t: "#metricWrap", ti: "Pick your primary metric", b: "Pick any metric and the whole map recolors instantly: sales, knocks, close rates, whatever drives your decisions. Colors, sizes and popups all follow along." },
   { t: "#map", ti: "Click any area for the full story", b: "Hotspots and gaps jump out at a glance. Click a zip / FSA for its complete numbers, scroll to zoom, drag to pan." },
-  { t: "#settingsBtn", t2: [["#settingsBtn", 1000, settingsClickDemo], ["#settingsPanel", 2000]], ti: "Make the map yours", b: "The Settings button (top right) opens this panel: color scales that keep outliers from washing out the map, log scales for skewed data, a filter that drops low-activity areas, and area units (km² or sq mi)." },
+  { t: "#settingsBtn", t2: [["#settingsBtn", 1000, settingsClickDemo], ["#settingsPanel", 2000]], ti: "Make the map yours", b: "The Settings button (top right) opens this panel: color scales that keep outliers from washing out the map, log scales for skewed data, a filter that drops low-activity areas, and area units (km² or sq mi). Your fence GeoJSON loads here too: fences draw under the zips and show their names as you zoom in." },
   { t: "#permGrp", t2: [["#viewPermBtn", 1000, permitClickDemo], ["#permitAct", 2000], ["#permitLegend", 3000, permitActDemo], ["#permitAct", 4000, permitKnocksDemo]], ti: "Permit Requirements Documentation", b: "Flip to the Permits view to recolor the map by each area's requirement at a glance. The legend on the map switches between knocking and door hangers; the Edit Permits button opens the rule tracker for every jurisdiction." },
   { t: "#permitsBtn", t2: [["#permitsBtn", 1000, editPermitsClickDemo], ["#permitDialog", 2000]], ti: "The rule tracker", b: "One record per jurisdiction: the codes it covers, the requirement for knocking and door hangers, fees, and where you verified it. It all saves automatically to this browser, or save a file to share with another computer." },
   { t: "#tourBtn", ti: "Your compass home", b: "Whenever you want this walkthrough again, the compass button brings it right back." }
@@ -1155,6 +1172,75 @@ function loadCustomersText(text, fname) { // parse + remember, so a reload resto
 $("penDen").addEventListener("change", () => { // re-derive penetration against the new denominator
   if (CUSTOMERS && rows.length) { applyCustomerCols(); savePrefs(); refreshSelectors(); draw(); } // save first: applyControls (inside refreshSelectors) restores from prefs
 });
+
+// ---- fence underlay (GeoJSON export from the planning system) ----
+let FENCES = 0, FENCES_ON = true, fenceLayer = null, fenceLbls = null; // built at parse; drawFences adds/removes
+try { const fp = JSON.parse(localStorage.getItem("dkm-prefs") || "null"); if (fp) FENCES_ON = fp.fOn !== false; } catch (e) { /* file:// quirks */ }
+const FENCE_Z = 13; // names appear once a fence fills enough screen to own one
+map.createPane("fences").style.zIndex = 350; // tiles 200 < fences 350 < zip overlays 400: the underlay
+const fenceRenderer = L.canvas({ pane: "fences" });
+function ringsCenter(rings) { // bbox center over every LatLng (coordsToLatLngs output): good enough to hang a label on
+  let la0 = 90, la1 = -90, ln0 = 180, ln1 = -180, n = 0;
+  const walk = a => {
+    if (Array.isArray(a)) return a.forEach(walk);
+    if (typeof a.lat !== "number" || typeof a.lng !== "number") return; // junk geometry: no label point
+    n++; la0 = Math.min(la0, a.lat); la1 = Math.max(la1, a.lat);
+    ln0 = Math.min(ln0, a.lng); ln1 = Math.max(ln1, a.lng);
+  };
+  walk(rings);
+  return n ? [(la0 + la1) / 2, (ln0 + ln1) / 2] : null;
+}
+function syncFenceLbls() { // zoom >= FENCE_Z shows the badges (marker pane: readable above the fills)
+  const on = !!fenceLayer && FENCES_ON && map.getZoom() >= FENCE_Z;
+  if (on && !map.hasLayer(fenceLbls)) fenceLbls.addTo(map);
+  else if (!on && map.hasLayer(fenceLbls)) map.removeLayer(fenceLbls);
+}
+map.on("zoomend", syncFenceLbls);
+function drawFences() {
+  if (fenceLayer) fenceLayer.remove();
+  if (fenceLbls) fenceLbls.remove();
+  $("fenceShowLbl").classList.toggle("hidden", !FENCES);
+  $("fenceShow").checked = FENCES_ON;
+  if (FENCES && FENCES_ON) { fenceLayer.addTo(map); syncFenceLbls(); }
+}
+function loadFencesText(text, fname, restored) { // parse + remember, so a reload restores the fences
+  let gj = null;
+  try { gj = JSON.parse(text.replace(/^\uFEFF/, "")); } catch (e) { return banner("Could not read that file. Is it valid GeoJSON?"); }
+  const feats = gj && Array.isArray(gj.features) ? gj.features.filter(f => f && f.geometry && /Polygon$/.test(f.geometry.type)) : [];
+  if (!feats.length) return banner("No fence polygons found in that file. Expected the GeoJSON export from your planning system (a FeatureCollection of polygons).");
+  if (!restored) {
+    try { localStorage.setItem("dkm-fences", JSON.stringify({ name: fname, text })); }
+    catch (e) { banner("Fences loaded, but too large for this browser to remember."); }
+    FENCES_ON = true; // a fresh upload shows immediately
+  }
+  const hex = c => /^#[0-9A-Fa-f]{3,8}$/.test(c || "") ? c : null;
+  const polys = [], lbls = [];
+  for (const f of feats) {
+    const p = f.properties || {};
+    const rings = L.GeoJSON.coordsToLatLngs(f.geometry.coordinates, f.geometry.type === "MultiPolygon" ? 2 : 1);
+    const fill = hex(p.fill) || "#00653A"; // their export colors, brand green-500 when absent
+    polys.push(L.polygon(rings, {
+      renderer: fenceRenderer, interactive: false, // pure underlay: clicks and hover pass to the zip layer above
+      color: hex(p.stroke) || fill, weight: 2, fillColor: fill,
+      fillOpacity: p["fill-opacity"] != null && isFinite(+p["fill-opacity"]) ? +p["fill-opacity"] : 0.4
+    }));
+    const t = p.text != null ? String(p.text).trim() : "";
+    const c = t && ringsCenter(rings);
+    if (c) lbls.push(L.marker(c, { // name badge; never blocks zip clicks
+      interactive: false, keyboard: false,
+      icon: L.divIcon({ className: "", html: `<span class="fenceLbl">${esc(t)}</span>` })
+    }));
+  }
+  FENCES = polys.length;
+  fenceLayer = L.layerGroup(polys);
+  fenceLbls = L.layerGroup(lbls);
+  drawFences();
+  savePrefs(); // fresh upload forced FENCES_ON: persist it
+  if (!restored) banner(`Loaded ${FENCES} fences. Their names appear as you zoom in.`, true);
+}
+$("fenceBtn").addEventListener("click", () => $("fenceFile").click());
+$("fenceFile").addEventListener("change", e => { if (e.target.files[0]) handleFile(e.target.files[0], e.target, loadFencesText); });
+$("fenceShow").addEventListener("change", e => { FENCES_ON = e.target.checked; savePrefs(); drawFences(); });
 
 // ---- rendering -----------------------------------------------------------
 function hl(els, on) { // hover styling shared by mouseover/out and the popup pin; ...el.base keeps the selection stroke
@@ -1725,6 +1811,8 @@ try { navigator.storage && navigator.storage.persist(); } catch (e) { /* no-op w
     if (rep && rep.text) { parseReport(rep.text, rep.name); restored.push(`report "${rep.name}"`); }
     const cus = CUSTOMERS_ENABLED ? JSON.parse(localStorage.getItem("dkm-customers") || "null") : null;
     if (cus && cus.text) { loadCustomersText(cus.text, cus.name); restored.push("customer list"); }
+    const fen = JSON.parse(localStorage.getItem("dkm-fences") || "null");
+    if (fen && fen.text) { loadFencesText(fen.text, fen.name, true); restored.push("fences"); }
   } catch (e) { /* corrupted stash: start fresh */ }
   if (restored.length) banner(`Restored from this browser: ${restored.join(" and ")}. Upload new files any time.`, true);
 })();
