@@ -284,6 +284,7 @@
   dialog#permitDialog .q.tipL:hover::after { left: auto; right: calc(100% + 8px); } /* rows near the dialog's right edge: open left, never clipped by the scroll box */
   dialog#permitDialog #pPick { flex: none; font-size: 13px; padding: 6px 10px; }
   dialog#permitDialog #pPick.on { background: var(--wm-green-500); border-color: var(--wm-green-500); color: #fff; }
+  body.grey .leaflet-fences-pane { filter: grayscale(1); } /* fence underlay greyscale: desaturates the imported colors; zip choropleth + basemap live in other panes and keep their colors */
   #map.picking, #map.picking .leaflet-interactive { cursor: crosshair !important; }
   #permitList { max-height: 130px; overflow: auto; border: 1px solid var(--wm-neutral-100); border-radius: var(--radius-sm); margin: 8px 0; }
   #permitList:empty { display: none; }
@@ -483,6 +484,7 @@
     <span>Fences</span>
     <span class="ctl">
       <label class="chk hidden" id="fenceShowLbl" title="Show or hide the fence layer"><input type="checkbox" id="fenceShow"> show</label>
+      <label class="chk hidden" id="fenceGreyLbl" title="Draw the fences in greyscale so the colored zip areas stand out"><input type="checkbox" id="fenceGrey"> greyscale</label>
       <button id="fenceBtn" title="Load the GeoJSON fence export from your planning system">Load GeoJSON</button>
     </span>
     <input type="file" id="fenceFile" accept=".geojson,.json,.txt" class="hidden">
@@ -968,13 +970,15 @@ function applyControls() {
   $("unitSel").value = UNITS;
   FENCES_ON = p ? p.fOn !== false : FENCES_ON;
   $("fenceShow").checked = FENCES_ON;
+  $("fenceGrey").checked = p ? !!p.fGrey : false; // checkbox is the state (permitAct pattern)
+  document.body.classList.toggle("grey", $("fenceGrey").checked);
 }
 function savePrefs() {
   try {
     localStorage.setItem("dkm-prefs", JSON.stringify({
       metric: metricCol, scale: $("scaleMode").value, log: $("logMode").value,
       fCol: $("filterCol").value, fVal: $("filterIn").value,
-      pins: [...pinned], pOn: PERMIT_VIEW, pAct: $("permitAct").value, pDen: $("penDen").value, units: UNITS, fOn: FENCES_ON,
+      pins: [...pinned], pOn: PERMIT_VIEW, pAct: $("permitAct").value, pDen: $("penDen").value, units: UNITS, fOn: FENCES_ON, fGrey: $("fenceGrey").checked,
       tourDone: TOUR_DONE,
       mv: [map.getCenter().lat, map.getCenter().lng, map.getZoom()] // map view follows along
     }));
@@ -1200,6 +1204,7 @@ function drawFences() {
   if (fenceLayer) fenceLayer.remove();
   if (fenceLbls) fenceLbls.remove();
   $("fenceShowLbl").classList.toggle("hidden", !FENCES);
+  $("fenceGreyLbl").classList.toggle("hidden", !FENCES);
   $("fenceShow").checked = FENCES_ON;
   if (FENCES && FENCES_ON) { fenceLayer.addTo(map); syncFenceLbls(); }
 }
@@ -1241,6 +1246,7 @@ function loadFencesText(text, fname, restored) { // parse + remember, so a reloa
 $("fenceBtn").addEventListener("click", () => $("fenceFile").click());
 $("fenceFile").addEventListener("change", e => { if (e.target.files[0]) handleFile(e.target.files[0], e.target, loadFencesText); });
 $("fenceShow").addEventListener("change", e => { FENCES_ON = e.target.checked; savePrefs(); drawFences(); });
+$("fenceGrey").addEventListener("change", e => { document.body.classList.toggle("grey", e.target.checked); savePrefs(); });
 
 // ---- rendering -----------------------------------------------------------
 function hl(els, on) { // hover styling shared by mouseover/out and the popup pin; ...el.base keeps the selection stroke
