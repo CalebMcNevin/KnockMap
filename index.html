@@ -1193,7 +1193,7 @@ function ringsCenter(rings) { // bbox center over every LatLng (coordsToLatLngs 
 function syncFenceLbls() { // zoom >= FENCE_Z shows the badges (marker pane: readable above the fills)
   const on = !!fenceLayer && FENCES_ON && map.getZoom() >= FENCE_Z;
   if (on && !map.hasLayer(fenceLbls)) fenceLbls.addTo(map);
-  else if (!on && map.hasLayer(fenceLbls)) map.removeLayer(fenceLbls);
+  else if (!on && fenceLbls && map.hasLayer(fenceLbls)) map.removeLayer(fenceLbls); // fenceLbls null until a GeoJSON loads: hasLayer(null) throws, and a throw inside a zoomend handler aborts the renderer's own zoomend/moveend resets (stale canvas geometry)
 }
 map.on("zoomend", syncFenceLbls);
 function drawFences() {
