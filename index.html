@@ -970,7 +970,7 @@ function applyControls() {
   $("unitSel").value = UNITS;
   FENCES_ON = p ? p.fOn !== false : FENCES_ON;
   $("fenceShow").checked = FENCES_ON;
-  $("fenceGrey").checked = p ? !!p.fGrey : false; // checkbox is the state (permitAct pattern)
+  $("fenceGrey").checked = p ? p.fGrey !== false : true; // checkbox is the state (permitAct pattern); greyscale is the default
   document.body.classList.toggle("grey", $("fenceGrey").checked);
 }
 function savePrefs() {
